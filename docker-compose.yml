@@ -10,7 +10,7 @@ networks:
 x-common-env: &common-env
   DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
   REDIS_URL: redis://${REDIS_HOST}:${REDIS_PORT}/0
-  OLLAMA_BASE_URL: http://ollama:${OLLAMA_PORT}
+  OLLAMA_BASE_URL: http://${OLLAMA_HOST}:${OLLAMA_PORT}
 
 services:
   #1. API Gateway(FastAPI)
@@ -55,8 +55,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
+      ollama-init:
+        condition: service_completed_successfully
 
   # 3. 消化器官 Worker (處理 PDF 切塊、呼叫 Embedding 轉向量)
   ingestion-worker:
@@ -64,7 +64,7 @@ services:
     container_name: ${PROJECT_NAME}_ingestion_worker
     env_file: .env
     # 指定啟動 Celery，並且只監聽名為 document_queue 的佇列
-    command: celery -A src.agent_runtime.tasks worker -Q document_queue --loglevel=info
+    command: celery -A src.ingestion.tasks worker -Q document_queue --loglevel=info
     volumes:
       - ./src:/app/src
     networks:
@@ -78,8 +78,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
+      ollama-init:
+        condition: service_completed_successfully
 
   # 4. Message Broker (任務佇列與緩衝區) 
   redis:
@@ -125,8 +125,10 @@ services:
     networks:
       - agent_net
     volumes:
-      - ollama_models:/root/.ollama # 將下載的模型存在本機，避免容器重啟後要重抓
+      # 將下載的模型存在本機，避免容器重啟後要重抓
+      - ollama_models:/root/.ollama
     # Ollama 搭配 WSL2 GPU 穿透
+    # docker compose V2 標準寫法
     deploy:
       resources:
         reservations:
@@ -134,6 +136,28 @@ services:
             - driver: nvidia
               count: ${NVIDIA_VISIBLE_DEVICES}
               capabilities: [ gpu ]
+    healthcheck:
+      test: [ "CMD", "ollama", "list" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # 7. 模型初始化 Worker
+  ollama-init:
+    image: ollama/ollama:latest #直接用官方 Image，內建 CLI，不用再安裝
+    container_name: ${PROJECT_NAME}_ollama_init
+    env_file: .env
+    networks:
+      - agent_net
+    volumes:
+      # 同樣掛載 models，這樣 Init 容器抓完模型，本體也能直接讀取
+      - ollama_models:/root/.ollama
+      - ./scripts/ollama-init.sh:/ollama-init.sh
+    entrypoint: [ "/bin/sh", "/ollama-init.sh" ]
+    depends_on:
+      ollama:
+        # condition: service_started
+        condition: service_healthy # 等待本體 Server 確定活著才開始做事
 
   volumes:
     pgdata:

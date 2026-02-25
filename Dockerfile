@@ -18,5 +18,6 @@ RUN poetry config virtualenvs.create false \
 # 複製所有原始碼進去
 COPY ./src /app/src
 
-# 設定環境變數確保 Python 能找到 src 目錄
-ENV PYTHONPATH=/app
+# 設定環境變數確保 Python 能找到 src 目錄(???)
+# ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/src
