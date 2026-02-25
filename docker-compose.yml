@@ -1,0 +1,142 @@
+version: '3.8'
+
+# 定義專屬網路(使用 alias 避免變數替換問題)，隔離環境
+networks:
+  agent_net:
+    name: ${PROJECT_NAME}_network
+    driver: bridge
+
+# 定義共用環境變數模組
+x-common-env: &common-env
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+  REDIS_URL: redis://${REDIS_HOST}:${REDIS_PORT}/0
+  OLLAMA_BASE_URL: http://ollama:${OLLAMA_PORT}
+
+services:
+  #1. API Gateway(FastAPI)
+  api:
+    build: .
+    container_name: ${PROJECT_NAME}_api
+    env_file: .env
+    # 這裡就是取代 Dockerfile CMD 的地方：指定啟動 FastAPI
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port ${API_PORT} --reload
+    volumes:
+      - ./src:/app/src
+    ports:
+      - "${API_HOST_PORT}:${API_PORT}"
+    networks:
+      - agent_net
+    environment:
+      # FastAPI 專屬：使用 +asyncpg 啟動非同步資料庫連線，徹底解放併發效能
+      <<: *common-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 2. 推論大腦 Worker (處理 Agent 對話、呼叫 LangChain 與工具)
+  agent-worker:
+    build: .
+    container_name: ${PROJECT_NAME}_agent_worker
+    env_file: .env
+    # 指定啟動 Celery，並且只監聽名為 inference_queue 的佇列
+    command: celery -A src.agent_runtime.tasks worker -Q inference_queue --loglevel=info
+    volumes:
+      - ./src:/app/src
+    networks:
+      - agent_net
+    environment:
+      <<: *common-env
+      # Worker 專屬：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  # 3. 消化器官 Worker (處理 PDF 切塊、呼叫 Embedding 轉向量)
+  ingestion-worker:
+    build: .
+    container_name: ${PROJECT_NAME}_ingestion_worker
+    env_file: .env
+    # 指定啟動 Celery，並且只監聽名為 document_queue 的佇列
+    command: celery -A src.agent_runtime.tasks worker -Q document_queue --loglevel=info
+    volumes:
+      - ./src:/app/src
+    networks:
+      - agent_net
+    environment:
+      <<: *common-env
+      # Worker 專屬：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  # 4. Message Broker (任務佇列與緩衝區) 
+  redis:
+    image: redis:7-alpine
+    container_name: ${PROJECT_NAME}_redis
+    env_file: .env
+    ports:
+      - "${REDIS_HOST_PORT}:${REDIS_PORT}"
+    networks:
+      - agent_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # 5. Database (PostgreSQL + pgvector 擴充)
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ${PROJECT_NAME}_db
+    env_file: .env
+    ports:
+      - "${POSTGRES_HOST_PORT}:${POSTGRES_PORT}"
+    networks:
+      - agent_net
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db_init/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      # 確保 DB 真的啟動完畢，API 和 Worker 才去連線，避免啟動時 Crash
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 6. AI 模型推論引擎
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ${PROJECT_NAME}_ollama
+    env_file: .env
+    ports:
+      - "${OLLAMA_HOST_PORT}:${OLLAMA_PORT}"
+    networks:
+      - agent_net
+    volumes:
+      - ollama_models:/root/.ollama # 將下載的模型存在本機，避免容器重啟後要重抓
+    # Ollama 搭配 WSL2 GPU 穿透
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${NVIDIA_VISIBLE_DEVICES}
+              capabilities: [ gpu ]
+
+  volumes:
+    pgdata:
+      name: ${PROJECT_NAME}_db_data
+    ollama_models:
+      name: ${PROJECT_NAME}_ollama_data
