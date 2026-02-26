@@ -2,17 +2,10 @@
 # 如果任何命令執行失敗（回傳非 0 的 Exit Code），立即中止腳本
 set -e
 
-export OLLAMA_HOST_URL=http://${OLLAMA_HOST}:${OLLAMA_PORT}
+# ollama CLI 工具，底層是寫死只認得名為 OLLAMA_HOST 的環境變數
+export OLLAMA_HOST="http://${OLLAMA_HOST}:${OLLAMA_PORT}"
 
 # # --- 1. 等待 Ollama 服務就緒 ---
-# echo "Waiting for Ollama API..."
-
-# until curl -s $OLLAMA_HOST_URL/api/tags > /dev/null; do
-#   sleep 2
-# done
-
-# echo "Ollama ready!"
-
 # 由於 docker-compose 已經設定了 service_healthy 等待，
 # 執行到這裡時，ollama 伺服器保證已經是 ready 的狀態了。
 

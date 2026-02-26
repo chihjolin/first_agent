@@ -159,8 +159,8 @@ services:
         # condition: service_started
         condition: service_healthy # 等待本體 Server 確定活著才開始做事
 
-  volumes:
-    pgdata:
-      name: ${PROJECT_NAME}_db_data
-    ollama_models:
-      name: ${PROJECT_NAME}_ollama_data
+volumes:
+  pgdata:
+    name: ${PROJECT_NAME}_db_data
+  ollama_models:
+    name: ${PROJECT_NAME}_ollama_data

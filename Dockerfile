@@ -13,11 +13,10 @@ COPY pyproject.toml poetry.lock* /app/
 
 # 設定 Poetry 不建立虛擬環境 (因為 Container 本身就是隔離的)，並安裝套件
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --without dev
+    && poetry install --no-interaction --no-ansi --without dev --no-root
 
 # 複製所有原始碼進去
 COPY ./src /app/src
 
-# 設定環境變數確保 Python 能找到 src 目錄(???)
-# ENV PYTHONPATH=/app
-ENV PYTHONPATH=/app/src
+# 設定環境變數確保 Python 能找到 src 目錄
+ENV PYTHONPATH=/app
