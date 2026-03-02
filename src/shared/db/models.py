@@ -4,7 +4,6 @@ import uuid
 from pgvector.sqlalchemy import Vector  # type: ignore
 from sqlalchemy import Column, DateTime, Enum, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
 
 from src.shared.db.session import Base
 
@@ -57,7 +56,7 @@ class ChatSession(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title = Column(String(255), nullable=True)  # 例如自動總結的第一句話
 
-    # 將對話歷史以 JSON Array 格式儲存
+    # 將對話歷史以 JSON Array 格式儲存 (專門給 LangChain 或 LLM 用的記憶體 (Memory))
     # 格式預計為: [{"role": "user", "content": "你好"}, {"role": "assistant", "content": "您好！"}]
     history = Column(JSONB, default=list, nullable=False)
 
@@ -77,11 +76,12 @@ class DocumentChunk(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     document_id = Column(
         String(255), nullable=False, index=True
-    )  # 關聯原始檔案名稱或 ID
+    )  # 關聯原始檔案名稱或 ID; 建立索引以加速搜尋
     content = Column(Text, nullable=False)  # 切塊後的真實文字內容
 
     # pgvector 欄位
     # nomic-embed-text 模型預設輸出的向量維度是 768 維
+    # 目的:下 SQL 語法算「餘弦相似度 (Cosine Similarity)」，找出最相關的文件
     embedding = Column(Vector(768))
 
     # 儲存 metadata，例如這塊文字來自 PDF 的第幾頁 (page_number: 1)
