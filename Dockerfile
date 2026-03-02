@@ -15,6 +15,10 @@ COPY pyproject.toml poetry.lock* /app/
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi --without dev --no-root
 
+# 確保 Image 內建 Migration 所需的所有藍圖
+COPY ./alembic /app/alembic
+COPY alembic.ini /app/alembic.ini
+
 # 複製所有原始碼進去
 COPY ./src /app/src
 

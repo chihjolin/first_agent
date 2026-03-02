@@ -12,10 +12,16 @@ x-common-env: &common-env
   REDIS_URL: redis://${REDIS_HOST}:${REDIS_PORT}/0
   OLLAMA_BASE_URL: http://${OLLAMA_HOST}:${OLLAMA_PORT}
 
+# 定義共用的 Image 模板，讓四個服務共用同一個 build context，省下重複 build 的時間
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+
 services:
   #1. API Gateway(FastAPI)
   api:
-    build: .
+    build:
+      <<: *app-build
     container_name: ${PROJECT_NAME}_api
     env_file: .env
     # 這裡就是取代 Dockerfile CMD 的地方：指定啟動 FastAPI
@@ -34,10 +40,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migration:
+        condition: service_completed_successfully # 等 Migration 跑完才啟動
 
   # 2. 推論大腦 Worker (處理 Agent 對話、呼叫 LangChain 與工具)
   agent-worker:
-    build: .
+    build:
+      <<: *app-build
     container_name: ${PROJECT_NAME}_agent_worker
     env_file: .env
     # 指定啟動 Celery，並且只監聽名為 inference_queue 的佇列
@@ -55,12 +64,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migration:
+        condition: service_completed_successfully
       ollama-init:
         condition: service_completed_successfully
 
   # 3. 消化器官 Worker (處理 PDF 切塊、呼叫 Embedding 轉向量)
   ingestion-worker:
-    build: .
+    build:
+      <<: *app-build
     container_name: ${PROJECT_NAME}_ingestion_worker
     env_file: .env
     # 指定啟動 Celery，並且只監聽名為 document_queue 的佇列
@@ -78,6 +90,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migration:
+        condition: service_completed_successfully
       ollama-init:
         condition: service_completed_successfully
 
@@ -114,6 +128,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # 5.5 資料庫遷移服務 (One-off Task)
+  migration:
+    build:
+      <<: *app-build
+    env_file: .env
+    # 跑完就退出 (One-off)的容器，讓 Docker 自己產生隨機容器名字．否則第二次啟動會name conflict
+    # 執行完 upgrade head 後自動退出
+    command: alembic upgrade head
+    # 一次性升級作業不需要熱更新（掛Volumes）
+    networks:
+      - agent_net
+    environment:
+      <<: *common-env
+    depends_on:
+      db:
+        condition: service_healthy
 
   # 6. AI 模型推論引擎
   ollama:
@@ -156,7 +187,6 @@ services:
     entrypoint: [ "/bin/sh", "/ollama-init.sh" ]
     depends_on:
       ollama:
-        # condition: service_started
         condition: service_healthy # 等待本體 Server 確定活著才開始做事
 
 volumes:

@@ -4,8 +4,14 @@ import uuid
 from pgvector.sqlalchemy import Vector  # type: ignore
 from sqlalchemy import Column, DateTime, Enum, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import DeclarativeBase
 
-from src.shared.db.session import Base
+
+# ==========================================
+# Base Class (給 models.py 裡的 Table 繼承用)
+# ==========================================
+class Base(DeclarativeBase):
+    pass
 
 
 # ==========================================

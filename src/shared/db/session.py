@@ -1,28 +1,40 @@
-import os
-
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
+from src.shared.core.config import settings
 from src.shared.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 直接從 Docker 環境變數讀取組裝好的 URL
-DATABASE_URL = os.getenv("DATABASE_URL")
+# ==========================================
+# 獲取或組裝 DATABASE_URL
+# ==========================================
+# 優先使用 Docker 注入的 URL
+DATABASE_URL = settings.DATABASE_URL
 
+# 如果沒有 DATABASE_URL，代表現在是「本機開發/Alembic 執行環境」，依賴 Pydantic 驗證過的安全屬性來組裝
 if not DATABASE_URL:
-    raise ValueError("環境變數 DATABASE_URL 尚未設定！")
+    DATABASE_URL = (
+        f"postgresql+asyncpg://"
+        f"{settings.POSTGRES_USER}:"
+        f"{settings.POSTGRES_PASSWORD}@"
+        f"{settings.POSTGRES_HOST}:"
+        f"{settings.POSTGRES_HOST_PORT}/"
+        f"{settings.POSTGRES_DB}"
+    )
+    logger.info("Local environment detected. Constructed DATABASE_URL from settings.")
 
-logger.info(f"Connecting to database via: {DATABASE_URL}")
 
+# 專業寫法: 建立 URL 物件 (同時用於判斷 driver 與安全列印)
+url_obj = make_url(DATABASE_URL)
 
-# ---------------------------------------------------
-# Base Class (給 models.py 裡的 Table 繼承用)
-# ---------------------------------------------------
-class Base(DeclarativeBase):
-    pass
+# debug用，暫時全部印出
+logger.info(
+    f"Connecting to database via: {url_obj.render_as_string(hide_password=False)}"
+)
+# logger.info(f"Connecting to database via: {url_obj.render_as_string(hide_password=True)}")
 
 
 # ---------------------------------------------------
@@ -33,7 +45,8 @@ async_engine = None
 SessionLocal = None
 AsyncSessionLocal = None
 
-if "asyncpg" in DATABASE_URL:
+
+if url_obj.drivername.startswith("postgresql+asyncpg"):
     # --- 給 FastAPI 用的非同步引擎 ---
     async_engine = create_async_engine(
         DATABASE_URL,
