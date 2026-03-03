@@ -1,9 +1,10 @@
 from typing import Generic, Optional, Type, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import DeclarativeBase
 
 # 定義泛型變數，代表任何 SQLAlchemy Model
-ModelType = TypeVar("ModelType")
+ModelType = TypeVar("ModelType", bound=DeclarativeBase)
 
 
 class BaseRepository(Generic[ModelType]):
@@ -22,5 +23,6 @@ class BaseRepository(Generic[ModelType]):
 
     async def save(self, obj: ModelType) -> ModelType:
         # 把 update 改名為 save，語意更精確 (同步狀態)
+        self.session.add(obj)
         await self.session.flush()
         return obj

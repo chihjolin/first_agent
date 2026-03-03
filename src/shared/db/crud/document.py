@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +26,8 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
             for chunk in chunks
         ]
         # Write optimized path
-        await self.session.execute(insert(DocumentChunk).values(values))
+        # SQLAlchemy 2.0 的 Bulk Insert
+        await self.session.execute(insert(DocumentChunk), values)
         await self.session.flush()
 
     async def search_similar(
@@ -35,7 +36,7 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         limit: int = 5,
         # 加上過濾條件，避免全表掃描炸掉 DB
         document_id: Optional[str] = None,
-    ) -> List[DocumentChunk]:
+    ) -> Sequence[DocumentChunk]:
         """
         向量相似度搜尋 (Inference Worker / RAG 會呼叫這個)，距離越小代表越相似
         使用 pgvector 的 cosine_distance 運算子 (<=>) 進行排序
@@ -53,5 +54,12 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         ).limit(limit)
 
         # Read optimized path
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        # .all() 在 SQLAlchemy 2.0 的型別標註是Sequence[DocumentChunk]
+        # Sequence 是抽象類型（具體類型如tuple / list 都符合）
+        # result = await self.session.execute(stmt)
+        # return result.scalars().all()
+
+        # 優化點 3：使用 session.scalars(stmt) 簡化代碼
+        # 這等同於 await self.session.execute(stmt) 接著 .scalars()
+        result = await self.session.scalars(stmt)
+        return result.all()

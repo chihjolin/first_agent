@@ -1,10 +1,12 @@
 import enum
 import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from pgvector.sqlalchemy import Vector  # type: ignore
-from sqlalchemy import Column, DateTime, Enum, String, Text, func
+from sqlalchemy import DateTime, Enum, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 # ==========================================
@@ -37,17 +39,24 @@ class Task(Base):
     __tablename__ = "tasks"
 
     # 使用 String(36) 儲存 UUID，這剛好完美對應 Celery 預設的 task_id 格式
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    task_type = Column(Enum(TaskType), nullable=False)
-    status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, nullable=False)
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    task_type: Mapped[TaskType] = mapped_column(Enum(TaskType), nullable=False)
+    status: Mapped[TaskStatus] = mapped_column(
+        Enum(TaskStatus), default=TaskStatus.PENDING, nullable=False
+    )
 
     # 儲存 Worker 處理完的結果 (例如回答的文字，或是解析完的檔案 Meta)
-    result = Column(JSONB, nullable=True)
+    # # Optional 對應 nullable=True
+    result: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     # 若狀態為 FAILED，這裡儲存 Exception 內容方便除錯
-    error_message = Column(Text, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
@@ -59,15 +68,23 @@ class Task(Base):
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    title = Column(String(255), nullable=True)  # 例如自動總結的第一句話
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    title: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )  # 例如自動總結的第一句話
 
     # 將對話歷史以 JSON Array 格式儲存 (專門給 LangChain 或 LLM 用的記憶體 (Memory))
     # 格式預計為: [{"role": "user", "content": "你好"}, {"role": "assistant", "content": "您好！"}]
-    history = Column(JSONB, default=list, nullable=False)
+    history: Mapped[List[Dict[str, Any]]] = mapped_column(
+        JSONB, default=list, nullable=False
+    )
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
@@ -79,18 +96,23 @@ class ChatSession(Base):
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    document_id = Column(
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    document_id: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True
     )  # 關聯原始檔案名稱或 ID; 建立索引以加速搜尋
-    content = Column(Text, nullable=False)  # 切塊後的真實文字內容
+    content: Mapped[str] = mapped_column(Text, nullable=False)  # 切塊後的真實文字內容
 
     # pgvector 欄位
     # nomic-embed-text 模型預設輸出的向量維度是 768 維
     # 目的:下 SQL 語法算「餘弦相似度 (Cosine Similarity)」，找出最相關的文件
-    embedding = Column(Vector(768))
+    # 專案時限考量，embedding NOT NULL的強制性暫時先靠Pydantic來守
+    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(768), nullable=True)
 
     # 儲存 metadata，例如這塊文字來自 PDF 的第幾頁 (page_number: 1)
-    metadata_ = Column(JSONB, nullable=True)
+    metadata_: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

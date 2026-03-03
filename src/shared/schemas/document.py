@@ -13,6 +13,7 @@ class DocumentChunkBase(BaseModel):
 
 class DocumentChunkCreate(DocumentChunkBase):
     # API收到JSON Array-> Pydantic 接收 List[float] -> 儲存時 pgvector 會自動轉成向量格式
+    # 強制要求輸入向量
     embedding: List[float]
 
 
