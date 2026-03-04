@@ -1,0 +1,24 @@
+# --- 資安機密 (最重要！) ---
+.env
+*.env
+.env.*
+
+# --- Git 相關 ---
+.git
+.gitignore
+
+# --- Python 快取與虛擬環境 ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# --- 本機開發與設定檔 ---
+.vscode/
+.idea/
+*.md
+docker-compose*.yml
+Dockerfile
