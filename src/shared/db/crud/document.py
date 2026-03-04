@@ -1,6 +1,6 @@
 from typing import List, Optional, Sequence
 
-from sqlalchemy import insert, select
+from sqlalchemy import insert, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.db.crud.base import BaseRepository
@@ -18,15 +18,19 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         這對於動輒幾千筆切塊的 Ingestion 流程極度重要。
         """
         # 將 ORM 物件轉為純字典陣列
+        # [sqlalchemy 2.0 官方推薦]mapper: col.attrs只包含 ORM 真正 mapped 的欄位，不會抓 relationship，hybrid property，computed property
+        mapper = inspect(DocumentChunk)
         values = [
             {
-                column.name: getattr(chunk, column.name)
-                for column in DocumentChunk.__table__.columns
+                attr.key: value
+                for attr in mapper.column_attrs
+                # 避免在created at為None的情況下覆寫pg的server_default
+                if (value := getattr(chunk, attr.key)) is not None
             }
             for chunk in chunks
         ]
         # Write optimized path
-        # SQLAlchemy 2.0 的 Bulk Insert
+        # [sqlalchemy 2.0 官方推薦]Bulk Insert
         await self.session.execute(insert(DocumentChunk), values)
         await self.session.flush()
 

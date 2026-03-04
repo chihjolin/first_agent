@@ -21,7 +21,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.db.crud.task import TaskRepository
-from src.shared.db.models import Task, TaskType
+from src.shared.db.models import Task, TaskStatus, TaskType
 
 # 引入真實的 engine
 from src.shared.db.session import async_engine
@@ -42,7 +42,9 @@ async def db_session():
 
         # 3. 綁定 Session，開啟 SAVEPOINT 模式，允許測試內部安全地模擬 commit
         async with AsyncSession(
-            bind=conn, join_transaction_mode="create_savepoint"
+            bind=conn,
+            join_transaction_mode="create_savepoint",
+            expire_on_commit=False,  # 關鍵就在這
         ) as session:
             yield session
 
@@ -57,11 +59,11 @@ async def test_task_crud_lifecycle(db_session):
     # --- 1. 測試 Create ---
     task = Task(task_type=TaskType.INGESTION)
     await repo.create(task)
-    assert task.id is not None
-    assert task.status == "PENDING"
-
     # 模擬真實 API 的 Commit 行為 (觸發 DB 真實寫入)
     await db_session.commit()
+
+    assert task.id is not None
+    assert task.status == TaskStatus.PENDING
 
     # --- 2. 測試 Get (確保是從 DB 真實撈出，而不是從記憶體緩存) ---
     fetched = await repo.get(task.id)
@@ -69,12 +71,11 @@ async def test_task_crud_lifecycle(db_session):
     assert fetched.id == task.id
 
     # --- 3. 測試 Update ---
-    assert fetched.status == "COMPLETED"
-    assert fetched.result == {"msg": "Done"}
+    fetched.status = TaskStatus.COMPLETED
+    fetched.result = {"msg": "Done"}
+
     await repo.save(fetched)
-    # 再次 Commit
     await db_session.commit()
 
-    # 驗證結果
-    assert fetched.status == "COMPLETED"
-    assert fetched.result["msg"] == "Done"
+    assert fetched.status == TaskStatus.COMPLETED
+    assert fetched.result == {"msg": "Done"}

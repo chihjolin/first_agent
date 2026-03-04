@@ -11,7 +11,10 @@ class ChatSessionBase(BaseModel):
 
 
 class ChatSessionCreate(ChatSessionBase):
-    pass  # 建立時可以給 title 和 history，也可以都不給(全空)
+    # 建立時可以不提供 title 或 history。
+    # 若未提供 history，Pydantic 會自動填入空陣列 []。
+    # DB 層 nullable=False，但因為有 default=list，不會產生 NULL。
+    pass
 
 
 class ChatSessionUpdate(BaseModel):
