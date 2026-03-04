@@ -3,6 +3,10 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# class ChatRequest(BaseModel):
+#     query: str = Field(..., description="使用者的提問文字")
+#     user_id: str = Field(default="anonymous", description="使用者 ID")
+
 
 class ChatSessionBase(BaseModel):
     title: Optional[str] = None

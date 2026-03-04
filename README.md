@@ -30,6 +30,7 @@ Tool Calling / RAG / Memory → LLM（Ollama） → Response
    - 主要端點：
         - POST /upload: 上傳文件 
         - POST /chat：Agent 對話
+        - GET /tasks/{task_id}: 提供前端 Polling 進度與結果
         - POST /tools/*：工具呼叫 API
         - GET /health：健康檢查
 
