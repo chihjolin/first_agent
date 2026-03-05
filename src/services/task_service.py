@@ -7,12 +7,10 @@ from src.domain.exceptions import (
     DatabaseWriteError,
     TaskNotFoundError,
 )
+from src.shared.core.celery_app import celery_app
 from src.shared.core.logger import get_logger
 from src.shared.db.crud.task import TaskRepository
 from src.shared.db.models import Task, TaskStatus, TaskType
-
-# TODO: 下一步我們會建立 Celery App，這裡先預留 import 位置
-# from src.shared.core.celery_app import celery_app
 
 logger = get_logger(__name__)
 
@@ -55,14 +53,14 @@ class TaskService:
         # 2. 派發至 Message Broker(Redis)
         try:
             # 這裡我們把動態產生的 task_id 塞進 kwargs 給 Celery
-            celery_kwargs = {**celery_kwargs, "task_id": new_task.id}
+            celery_kwargs = {
+                **celery_kwargs,
+                "task_id": str(new_task.id),
+            }  # 確保 UUID 轉成字串
             # 舊寫法: 這會 mutate 原 dict。如果未來有人重用 dict，會出 bug。
             # celery_kwargs["task_id"] = new_task.id
-            # TODO: 這裡先用註解模擬 Celery 派發，等 Celery App 建立後解開
-            # celery_app.send_task(
-            #     celery_task_name,
-            #     kwargs=celery_kwargs
-            # )
+            # Celery 派發
+            celery_app.send_task(celery_task_name, kwargs=celery_kwargs)
             logger.info(
                 f"[{task_type.value}] Task {new_task.id} dispatched to Broker: {celery_task_name}"
             )

@@ -8,6 +8,12 @@ from pydantic import BaseModel, ConfigDict, Field
 #     user_id: str = Field(default="anonymous", description="使用者 ID")
 
 
+# 簡單定義一下前端傳過來的 Request Body 格式
+class ChatRequest(BaseModel):
+    query: str
+    user_id: str = "anonymous"
+
+
 class ChatSessionBase(BaseModel):
     title: Optional[str] = None
     # 預設為空陣列，用來存放對話歷史 [{"role": "user", "content": "hi"}, ...]

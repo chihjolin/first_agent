@@ -41,9 +41,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "*"
-    ],  # 這在 production 會出錯, allow_credentials=True 時不能 allow_origins=["*"]
-    allow_credentials=True,  # MVP OK，但之後一定要改成：allow_origins=["http://localhost:3000"]
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://localhost:8001",  # Swagger UI 測試用
+    ],  # allow_credentials=True 時不能 allow_origins=["*"]
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

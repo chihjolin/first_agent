@@ -3,15 +3,10 @@ from pydantic import BaseModel
 
 from src.api.dependencies import TaskServiceDep
 from src.domain.exceptions import BrokerDispatchError, DatabaseWriteError
+from src.shared.schemas.chat import ChatRequest
 from src.shared.schemas.task import TaskResponse
 
 router = APIRouter()
-
-
-# 簡單定義一下前端傳過來的 Request Body 格式
-class ChatRequest(BaseModel):
-    query: str
-    user_id: str = "anonymous"
 
 
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_202_ACCEPTED)
