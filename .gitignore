@@ -1,3 +1,6 @@
 .env*
 *cache*
 backup*/
+.vscode*
+temp*
+shared_uploads*

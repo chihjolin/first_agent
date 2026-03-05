@@ -28,6 +28,7 @@ services:
     command: uvicorn src.api.main:app --host 0.0.0.0 --port ${API_PORT} --reload
     volumes:
       - ./src:/app/src
+      - ./shared_uploads:/app/temp_uploads # 上傳檔案儲存目錄共同掛載到本機的 shared_uploads
     ports:
       - "${API_HOST_PORT}:${API_PORT}"
     networks:
@@ -79,6 +80,7 @@ services:
     command: celery -A src.ingestion.tasks worker -Q document_queue --loglevel=info
     volumes:
       - ./src:/app/src
+      - ./shared_uploads:/app/temp_uploads # Worker 也能讀到同一個資料夾
     networks:
       - agent_net
     environment:
@@ -137,7 +139,7 @@ services:
     # 跑完就退出 (One-off)的容器，讓 Docker 自己產生隨機容器名字．否則第二次啟動會name conflict
     # 執行完 upgrade head 後自動退出
     command: alembic upgrade head
-    # 一次性升級作業不需要熱更新（掛Volumes）
+    # [Production]一次性升級作業不需要熱更新（bind mount）
     networks:
       - agent_net
     environment:

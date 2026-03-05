@@ -34,5 +34,5 @@ class TaskResponse(TaskBase):
     created_at: datetime
     updated_at: datetime
     # 魔法屬性：讓 Pydantic 能夠直接讀取 SQLAlchemy 的 ORM 物件
-    # 資料庫物件(SQLAlchemy ORM 物件) -> Pydantic Schema -> FastAPI JSON 回應
+    # 資料庫物件(SQLAlchemy ORM 物件) -> Pydantic Schema -> FastAPI 序列化為 JSON
     model_config = ConfigDict(from_attributes=True)

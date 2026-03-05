@@ -1,0 +1,28 @@
+class DomainException(Exception):
+    """系統領域錯誤的基底類別"""
+
+    pass
+
+
+class DatabaseWriteError(DomainException):
+    """當資料庫寫入、更新或 Commit 失敗時拋出"""
+
+    pass
+
+
+class BrokerDispatchError(DomainException):
+    """當 Celery 任務無法成功推送到 Redis 時拋出"""
+
+    pass
+
+
+class TaskNotFoundError(DomainException):
+    """當查詢的任務 ID 不存在時拋出"""
+
+    pass
+
+
+class FileProcessError(DomainException):
+    """當上傳檔案儲存、讀取或驗證失敗時拋出"""
+
+    pass
