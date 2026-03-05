@@ -1,21 +1,13 @@
-import os
-
-from celery import Celery  # type: ignore
+import time
 
 from src.shared.core.celery_app import celery_app
 
-# 讀取 Docker 注入的環境變數
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-# 建立Celery實例
-celery = Celery(
-    "agent_tasks",
-    broker=REDIS_URL,
-    backend=REDIS_URL,
-)
-
-
-# @celery_app.task(queue="inference_queue")
-@celery.task(name="dummy_inference_task")
-def dummy_inference():
+@celery_app.task(name="agent_runtime.tasks.process_chat_inference")
+def process_chat_inference(**kwargs):
+    task_id = kwargs["task_id"]
+    query = kwargs["query"]
+    user_id = kwargs["user_id"]
+    print("PROCESSING", task_id)
+    time.sleep(30)
     return "Inference worker is ready!"

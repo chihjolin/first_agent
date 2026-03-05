@@ -51,7 +51,7 @@ services:
     container_name: ${PROJECT_NAME}_agent_worker
     env_file: .env
     # 指定啟動 Celery，並且只監聽名為 inference_queue 的佇列
-    command: celery -A src.agent_runtime.tasks worker -Q inference_queue --loglevel=info
+    command: celery -A src.shared.core.celery_app:celery_app worker -Q inference_queue --concurrency=2 --loglevel=info --prefetch-multiplier=1
     volumes:
       - ./src:/app/src
     networks:
@@ -77,7 +77,7 @@ services:
     container_name: ${PROJECT_NAME}_ingestion_worker
     env_file: .env
     # 指定啟動 Celery，並且只監聽名為 document_queue 的佇列
-    command: celery -A src.ingestion.tasks worker -Q document_queue --loglevel=info
+    command: celery -A src.shared.core.celery_app:celery_app worker -Q document_queue --concurrency=2 --loglevel=info --prefetch-multiplier=1
     volumes:
       - ./src:/app/src
       - ./shared_uploads:/app/temp_uploads # Worker 也能讀到同一個資料夾
