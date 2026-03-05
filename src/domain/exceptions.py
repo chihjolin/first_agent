@@ -1,12 +1,3 @@
-# class DomainException(Exception):
-#     """系統領域錯誤的基底類別 (Base Class)"""
-
-#     def __init__(self, message: str):
-#         self.message = message
-#         # 把 message 傳給 Exception base class
-#         super().__init__(self.message)
-
-
 class DomainException(Exception):
     """系統領域錯誤的基底類別"""
 
@@ -27,5 +18,11 @@ class BrokerDispatchError(DomainException):
 
 class TaskNotFoundError(DomainException):
     """當查詢的任務 ID 不存在時拋出"""
+
+    pass
+
+
+class FileProcessError(DomainException):
+    """當上傳檔案儲存、讀取或驗證失敗時拋出"""
 
     pass

@@ -55,7 +55,9 @@ class TaskService:
         # 2. 派發至 Message Broker(Redis)
         try:
             # 這裡我們把動態產生的 task_id 塞進 kwargs 給 Celery
-            celery_kwargs["task_id"] = new_task.id
+            celery_kwargs = {**celery_kwargs, "task_id": new_task.id}
+            # 舊寫法: 這會 mutate 原 dict。如果未來有人重用 dict，會出 bug。
+            # celery_kwargs["task_id"] = new_task.id
             # TODO: 這裡先用註解模擬 Celery 派發，等 Celery App 建立後解開
             # celery_app.send_task(
             #     celery_task_name,
