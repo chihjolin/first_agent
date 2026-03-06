@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 # 優先使用 Docker 注入的 URL(ASYNC)
 DATABASE_URL_ASYNC = settings.DATABASE_URL_ASYNC
 
-# 如果沒有 DATABASE_URL，代表現在是「本機開發/Alembic 執行環境」，依賴 Pydantic 驗證過的安全屬性來組裝
+# 如果沒有 DATABASE_URL_ASYNC，代表現在是「本機開發/Alembic 執行環境」，依賴 Pydantic 驗證過的安全屬性來組裝
 if not DATABASE_URL_ASYNC:
     DATABASE_URL_ASYNC = (
         f"postgresql+asyncpg://"
@@ -120,7 +120,7 @@ async def get_db():
 # ---------------------------------------------------
 
 
-@contextmanager
+@contextmanager  # Connection Lifecycle Management
 def get_sync_db():
     """
     給 Celery Worker 使用的 Sync Session Factory
@@ -128,12 +128,12 @@ def get_sync_db():
     if not SessionLocal:
         raise RuntimeError("Sync engine was not initialized.")
 
-    db = SessionLocal()
+    db = SessionLocal()  # 1. 從 Connection Pool 借出一條連線
     try:
-        yield db
-        db.commit()
+        yield db  # 2. 將連線交給 Task 執行業務邏輯 (例如查資料、改狀態)
+        db.commit()  # 3. 如果 Task 順利執行完沒有報錯，自動 Commit (確保資料寫入)
     except Exception:
-        db.rollback()
-        raise
+        db.rollback()  # 4.萬一 Task 中途當機或拋錯，立刻 Rollback，避免鎖死資料庫表單 (Deadlock)
+        raise  # 並把錯誤往上丟，讓 Celery 的 Retry 機制接手
     finally:
-        db.close()
+        db.close()  # 5.最重要的一步：不管成功或失敗，強制把連線還給 Pool！

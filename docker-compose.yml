@@ -35,7 +35,7 @@ services:
     networks:
       - agent_net
     environment:
-      # FastAPI 專屬 (DATABASE_URL)：使用 +asyncpg 啟動非同步資料庫連線，徹底解放併發效能
+      # FastAPI 專屬 (DATABASE_URL_ASYNC)：使用 +asyncpg 啟動非同步資料庫連線，徹底解放併發效能
       <<: *common-env
     depends_on:
       db:
@@ -60,7 +60,6 @@ services:
     environment:
       <<: *common-env
       # Worker 專屬(DATABASE_URL_SYNC)：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
-      # DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
     depends_on:
       db:
         condition: service_healthy
@@ -87,7 +86,6 @@ services:
     environment:
       <<: *common-env
       # Worker 專屬(DATABASE_URL_SYNC)：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
-      # DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
     depends_on:
       db:
         condition: service_healthy

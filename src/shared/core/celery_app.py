@@ -9,11 +9,12 @@ celery_app = Celery(
     backend=settings.REDIS_URL,
 )
 
-# 設定 autodiscover_tasks，讓 Celery 啟動時能自動找到我們散落在各目錄的任務函式
+# 設定 autodiscover_tasks，讓 Celery 啟動時能自動找到我們散落在各目錄的任務函式(Task Register)
+# 這邊要對應到專案路徑
 celery_app.autodiscover_tasks(
     [
-        "src.agent_runtime",
-        "src.ingestion",
+        "src.worker.agent_runtime",
+        "src.worker.ingestion",
     ]
 )
 
@@ -26,7 +27,8 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
-# routing table 生效是 針對 Celery 任務名稱（task name）
+# routing table 生效是 針對 Celery 任務名稱
+# （必須完全對應對應fastapi: task_service: celery_app.send_task的參數celery_task_name）
 celery_app.conf.task_routes = {
     "agent_runtime.tasks.process_chat_inference": {"queue": "inference_queue"},
     "ingestion.tasks.process_document": {"queue": "document_queue"},
