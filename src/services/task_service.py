@@ -27,9 +27,9 @@ class TaskService:
         self,
         task_type: TaskType,
         celery_task_name: str,  # 只是告訴 Celery Worker 「你要去執行哪一段程式碼」
-        celery_kwargs: Dict[
+        payload: Dict[
             str, Any
-        ],  # 區分任務的關鍵: {"task_id": new_task.id, "query": query}
+        ],  # {"payload": {"query": query, "user_id": user_id}} (business data)
     ) -> Task:
         new_task = Task(
             task_type=task_type,
@@ -52,15 +52,15 @@ class TaskService:
 
         # 2. 派發至 Message Broker(Redis)
         try:
-            # 這裡我們把動態產生的 task_id 塞進 kwargs 給 Celery
-            celery_kwargs = {
-                **celery_kwargs,
-                "task_id": str(new_task.id),
-            }  # 確保 UUID 轉成字串
-            # 舊寫法: 這會 mutate 原 dict。如果未來有人重用 dict，會出 bug。
-            # celery_kwargs["task_id"] = new_task.id
+            # 這裡我們把動態產生的 task_id 以及payload 塞進 kwargs 給 Celery
             # Celery 派發
-            celery_app.send_task(celery_task_name, kwargs=celery_kwargs)
+            celery_app.send_task(
+                celery_task_name,
+                kwargs={
+                    "task_id": str(new_task.id),
+                    "payload": payload,
+                },
+            )
             logger.info(
                 f"[{task_type.value}] Task {new_task.id} dispatched to Broker: {celery_task_name}"
             )
@@ -95,7 +95,10 @@ class TaskService:
         return await self._create_and_dispatch(
             task_type=TaskType.INFERENCE,
             celery_task_name="agent_runtime.tasks.process_chat_inference",
-            celery_kwargs={"query": query, "user_id": user_id},
+            payload={
+                "query": query,
+                "user_id": user_id,
+            },
         )
 
     async def create_ingestion_task(self, file_name: str, file_path: str) -> Task:
@@ -106,7 +109,10 @@ class TaskService:
         return await self._create_and_dispatch(
             task_type=TaskType.INGESTION,
             celery_task_name="ingestion.tasks.process_document",
-            celery_kwargs={"file_name": file_name, "file_path": file_path},
+            payload={
+                "file_name": file_name,
+                "file_path": file_path,
+            },
         )
 
     async def get_task_status(self, task_id: str) -> Task:

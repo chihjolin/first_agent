@@ -26,7 +26,7 @@ def run_worker_task(
     workflow: Callable[..., Dict[str, Any]],
     *args,
     **kwargs,
-) -> None:
+) -> Dict[str, Any]:
     """
     Worker 任務通用排程器 (Wrapper)
 
@@ -36,6 +36,7 @@ def run_worker_task(
         *args, **kwargs: 傳遞給 workflow 的具體參數
     """
     logger.info("[Task %s] Worker task started", task_id)
+    result = None
 
     # ==========================================
     # 階段 1：標記 PROCESSING (短連線)
@@ -54,6 +55,7 @@ def run_worker_task(
     # ==========================================
     try:
         result = workflow(*args, **kwargs)
+
     except Exception as e:
         logger.error(
             "[Task %s] Worker task failed during execution", task_id, exc_info=True
@@ -86,41 +88,4 @@ def run_worker_task(
         logger.exception("[Task %s] Worker task failed during execution", task_id)
         raise
 
-    # try:
-    #     # 建立 DB session
-    #     with get_sync_db() as session:
-    #         state_service = TaskStateService(session)
-
-    #         # 1. PENDING -> PROCESSING
-    #         state_service.mark_processing(task_id)
-    #         # 2. 執行實際 workflow / pipeline
-    #         result = workflow(session, *args, **kwargs)
-    #         # 3. PROCESSING -> COMPLETED
-    #         state_service.mark_completed(
-    #             task_id,
-    #             result=result,
-    #         )
-
-    #         logger.info("[Task %s] Worker task completed", task_id)
-
-    # except Exception as e:
-    #     # logger.exception 會自動附上 stack trace
-    #     logger.exception("[Task %s] Worker task failed", task_id)
-
-    #     # 任務失敗也要寫 DB
-    #     try:
-    #         with get_sync_db() as session:
-    #             state_service = TaskStateService(session)
-
-    #             state_service.mark_failed(
-    #                 task_id,
-    #                 error_message=str(e),
-    #             )
-
-    #     except Exception:
-    #         # 如果 DB 更新失敗，仍然要記錄
-    #         logger.exception(
-    #             "[Task %s] Failed to update task status to FAILED", task_id
-    #         )
-
-    #     raise
+    return result

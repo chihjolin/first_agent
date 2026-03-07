@@ -13,16 +13,10 @@ from src.worker.utils.task_runner import run_worker_task
     retry_backoff=True,
     retry_kwargs={"max_retries": 3},
 )
-def process_document(
-    self,
-    task_id: str,
-    file_path: str,
-    file_name: str,
-):
+def process_document(self, task_id: str, payload: dict):
     """Celery 任務入口：處理文件上傳"""
-    run_worker_task(
+    return run_worker_task(
         task_id,
         run_ingestion_pipeline,
-        file_path,
-        file_name,
+        payload,
     )

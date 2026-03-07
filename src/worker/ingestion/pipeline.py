@@ -13,21 +13,30 @@ from sqlalchemy.orm import Session
 from src.domain.exceptions import DomainFileNotFoundError
 from src.shared.core.logger import get_logger
 from src.shared.db.crud.sync.document import DocumentChunkSyncRepository
+from src.shared.db.session import get_sync_db
 
 logger = get_logger(__name__)
 
 
-def run_ingestion_pipeline(file_path: str, file_name: str) -> Dict[str, Any]:
+def run_ingestion_pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     執行文件解析與向量化流水線
 
     Args:
-        file_path (str): 實體檔案在 Volume 中的絕對路徑
-        file_name (str): 原始檔案名稱
+        payload (Dict[str, Any]):
+            file_path: 實體檔案在 Volume 中的絕對路徑
+            file_name: 原始檔案名稱
 
     Returns:
         Dict[str, Any]: 處理完成的 Meta 資訊 (將寫入 Task.result)
     """
+    file_path = payload.get("file_path")
+    file_name = payload.get("file_name")
+
+    if not file_path or not file_name:
+        raise ValueError(
+            f"Invalid payload. file_path={file_path}, file_name={file_name}"
+        )
 
     logger.info("[Ingestion Worker] Verifying file: %s", file_name)
 

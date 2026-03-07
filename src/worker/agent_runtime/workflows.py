@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from src.shared.core.logger import get_logger
 from src.shared.db.crud.sync.chat import ChatSessionSyncRepository
+from src.shared.db.session import get_sync_db
 
 logger = get_logger(__name__)
 

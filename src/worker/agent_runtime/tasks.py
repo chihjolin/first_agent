@@ -15,7 +15,7 @@ from src.worker.utils.task_runner import run_worker_task
 )
 def process_chat_inference(self, task_id: str, payload: dict):
     """Celery 任務入口：處理對話推論"""
-    run_worker_task(
+    return run_worker_task(
         task_id,
         run_agent_workflow,
         payload,
