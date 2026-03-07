@@ -26,3 +26,15 @@ class FileProcessError(DomainException):
     """當上傳檔案儲存、讀取或驗證失敗時拋出"""
 
     pass
+
+
+class DomainFileNotFoundError(DomainException):
+    """ingestion worker找不到檔案時拋出"""
+
+    pass
+
+
+class InvalidTaskStateTransition(DomainException):
+    """worker狀態轉換不合法時拋出"""
+
+    pass

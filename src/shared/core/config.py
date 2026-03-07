@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     POSTGRES_HOST_PORT: int  # 本機port
     POSTGRES_PORT: int  # 容器port
     # Docker 啟動時會自動讀取系統環境變數覆蓋這個 None(預設值 None，所以設定檔沒寫也不會報錯)
-    DATABASE_URL: str | None = None
+    DATABASE_URL_ASYNC: str | None = None
+    DATABASE_URL_SYNC: str | None = None
     REDIS_URL: str = f"redis://localhost:6379/0"  # 本機開發用
 
     # 由左至右讀取，開發環境中.env.local 會覆蓋 .env

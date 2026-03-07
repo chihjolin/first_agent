@@ -8,7 +8,8 @@ networks:
 
 # 定義共用環境變數模組
 x-common-env: &common-env
-  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+  DATABASE_URL_ASYNC: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+  DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
   REDIS_URL: redis://${REDIS_HOST}:${REDIS_PORT}/0
   OLLAMA_BASE_URL: http://${OLLAMA_HOST}:${OLLAMA_PORT}
 
@@ -34,7 +35,7 @@ services:
     networks:
       - agent_net
     environment:
-      # FastAPI 專屬：使用 +asyncpg 啟動非同步資料庫連線，徹底解放併發效能
+      # FastAPI 專屬 (DATABASE_URL_ASYNC)：使用 +asyncpg 啟動非同步資料庫連線，徹底解放併發效能
       <<: *common-env
     depends_on:
       db:
@@ -51,15 +52,14 @@ services:
     container_name: ${PROJECT_NAME}_agent_worker
     env_file: .env
     # 指定啟動 Celery，並且只監聽名為 inference_queue 的佇列
-    command: celery -A src.agent_runtime.tasks worker -Q inference_queue --loglevel=info
+    command: celery -A src.shared.core.celery_app:celery_app worker -Q inference_queue --concurrency=2 --loglevel=info --prefetch-multiplier=1
     volumes:
       - ./src:/app/src
     networks:
       - agent_net
     environment:
       <<: *common-env
-      # Worker 專屬：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      # Worker 專屬(DATABASE_URL_SYNC)：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
     depends_on:
       db:
         condition: service_healthy
@@ -77,7 +77,7 @@ services:
     container_name: ${PROJECT_NAME}_ingestion_worker
     env_file: .env
     # 指定啟動 Celery，並且只監聽名為 document_queue 的佇列
-    command: celery -A src.ingestion.tasks worker -Q document_queue --loglevel=info
+    command: celery -A src.shared.core.celery_app:celery_app worker -Q document_queue --concurrency=2 --loglevel=info --prefetch-multiplier=1
     volumes:
       - ./src:/app/src
       - ./shared_uploads:/app/temp_uploads # Worker 也能讀到同一個資料夾
@@ -85,8 +85,7 @@ services:
       - agent_net
     environment:
       <<: *common-env
-      # Worker 專屬：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      # Worker 專屬(DATABASE_URL_SYNC)：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
     depends_on:
       db:
         condition: service_healthy
