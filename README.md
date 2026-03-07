@@ -30,6 +30,7 @@ Tool Calling / RAG / Memory → LLM（Ollama） → Response
    - 主要端點：
         - POST /upload: 上傳文件 
         - POST /chat：Agent 對話
+        - GET /tasks/{task_id}: 提供前端 Polling 進度與結果
         - POST /tools/*：工具呼叫 API
         - GET /health：健康檢查
 
@@ -178,15 +179,14 @@ curl -X GET http://localhost:8000/api/tasks/550e8400-e29b-41d4-a716-446655440000
     - 基礎設施與環境變數建置 (Docker, Redis, Postgres, Ollama)。
 - ✅ feature/02-db-interface
     - 確立資料合約。完成 SQLAlchemy 非同步連線設定、ORM 映射 (Mapped Models)、Alembic 遷移，以及導入 Repository Pattern 實作高效能 CRUD 與向量搜尋。
-
+- ✅ feature/03-fastapi-broker
+    - 實作 API 路由層。接收前端請求 -> 寫入 DB Task 狀態 (Pending) -> 推送任務至 Redis -> 立即回傳 Task ID 給 Client。
+- ✅ feature/04-worker-celery
+    - 建立 Celery Worker 基礎架構，打通非同步任務狀態更新的 E2E 骨幹。
 
 ### 待開發 (🚧)
-- 🚧 feature/03-fastapi-broker
-    - 實作 API 路由層。接收前端請求 -> 寫入 DB Task 狀態 (Pending) -> 推送任務至 Redis -> 立即回傳 Task ID 給 Client。
-- 🚧 feature/04-worker-celery
-    - 建立 Celery Worker 基礎架構，打通非同步任務狀態更新的 E2E 骨幹。
-- 🚧 feature/05-agent-inference
-    - 整合 LiteLLM 與 LangChain，對接 Ollama 執行Agent 對話推論。
-- 🚧 feature/06-ingestion-pipeline
+- 🚧 feature/05-ingestion-pipeline
     - 實作 RAG 文件處理管線 (PDF 解析 -> Chunking -> Vectorization -> pgvector 儲存)
+- 🚧 feature/06-agent-inference
+    - 整合 LiteLLM 與 LangChain，對接 Ollama 執行Agent 對話推論。
 
