@@ -36,7 +36,7 @@ if config.config_file_name is not None:
 # ==========================================
 # 3. 安全且防呆的 DATABASE_URL 組裝
 # ==========================================
-DATABASE_URL = settings.DATABASE_URL
+DATABASE_URL = settings.DATABASE_URL_ASYNC
 # 解決本機開發 settings.DATABASE_URL 為 None 的問題
 if not DATABASE_URL:
     DATABASE_URL = (
