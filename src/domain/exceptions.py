@@ -1,16 +1,46 @@
-class DomainException(Exception):
-    """系統領域錯誤的基底類別"""
+class AppException(Exception):
+    """整個系統的 base exception"""
 
     pass
 
 
-class DatabaseWriteError(DomainException):
+class InfrastructureException(AppException):
+    """DB / Redis / 外部服務"""
+
+    pass
+
+
+class DomainException(AppException):
+    """業務邏輯錯誤"""
+
+    pass
+
+
+# class DomainException(Exception):
+#     """系統領域錯誤的基底類別"""
+
+#     pass
+
+
+# class DatabaseWriteError(DomainException):
+#     """當資料庫寫入、更新或 Commit 失敗時拋出"""
+
+#     pass
+
+
+# class BrokerDispatchError(DomainException):
+#     """當 Celery 任務無法成功推送到 Redis 時拋出"""
+
+#     pass
+
+
+class DatabaseWriteError(InfrastructureException):
     """當資料庫寫入、更新或 Commit 失敗時拋出"""
 
     pass
 
 
-class BrokerDispatchError(DomainException):
+class BrokerDispatchError(InfrastructureException):
     """當 Celery 任務無法成功推送到 Redis 時拋出"""
 
     pass
