@@ -10,13 +10,20 @@ class IngestionDocument:
     content: str
     metadata: Dict[str, Any]
     # doc_id 應該由「pipeline 控制」，不是 parser
-    doc_id: Optional[str] = None
+    doc_id: Optional[str] = None  # (?)
 
 
 @dataclass
 class Chunk:
     content: str
     metadata: Dict[str, Any]
-    doc_id: str
+    doc_id: str  # (?)
     chunk_index: int
-    embedding: Optional[List[float]] = None
+
+
+@dataclass
+class EmbeddedChunk:
+    content: str
+    metadata: Dict[str, Any]
+    chunk_index: int
+    embedding: List[float]

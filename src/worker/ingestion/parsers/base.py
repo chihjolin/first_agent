@@ -26,7 +26,11 @@ class BaseParser(ABC):
     """
 
     @abstractmethod
-    def parse(self, file_path: str, file_name: str) -> Iterator[IngestionDocument]:
+    def parse(
+        self,
+        file_path: str,
+        file_name: str,
+    ) -> Iterator[IngestionDocument]:
         """
         將實體檔案解析為系統內部的 IngestionDocument(串流輸出）。
 

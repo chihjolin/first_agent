@@ -37,7 +37,7 @@ class PDFParser(BaseParser):
                 # 逐頁解析 PDF（避免一次載入）
                 for page_index in range(total_pages):
 
-                    # 取得第 page_index 頁
+                    # 取得第 page_index 頁(page object)
                     page = doc.load_page(page_index)
                     # 將 PDF page 轉為純文字
                     text = cast(str, page.get_text("text"))
