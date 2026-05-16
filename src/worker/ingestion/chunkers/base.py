@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Iterator
 
-from src.worker.ingestion.domain.models import Chunk, IngestionDocument
+from src.worker.ingestion.domain.models import IngestionDocument, PendingChunk
 
 # from langchain_core.documents import Document
 
@@ -9,6 +9,8 @@ from src.worker.ingestion.domain.models import Chunk, IngestionDocument
 class BaseChunker(ABC):
     """
     文件切塊器抽象基底類別(Strategy Pattern)
+
+    負責將單一文件切分為 Chunk 串流。
 
     設計目的：
     - 定義「文件 → Chunk」的統一介面
@@ -22,7 +24,8 @@ class BaseChunker(ABC):
     設計重點：
     - 不依賴 LangChain / LlamaIndex
     - 僅使用系統內部定義的 Domain Model
-    - 使用 streaming(yield)避免大量記憶體消耗
+    - 使用 streaming(yield) 降低記憶體消耗
+    - 保持 stateless，利於平行處理與策略替換
 
     為什麼重要：
     Chunking 是 RAG 品質的核心，
@@ -33,20 +36,19 @@ class BaseChunker(ABC):
     @abstractmethod
     def chunk(
         self,
-        documents: IngestionDocument,
-    ) -> Iterator[Chunk]:
+        document: IngestionDocument,
+    ) -> Iterator[PendingChunk]:
         """
-        將 IngestionDocument 切分為 Chunk(串流輸出)
+        將單一 IngestionDocument 切分為 PendingChunk 串流。
 
         Args:
-            document (IngestionDocument):
-                Parser 產出的文件資料
+            document: Pipeline 注入 doc_id 後的文件資料
 
         Yields:
-            Chunk:
-                - content: chunk 後的文字內容
-                - metadata: 保留來源 metadata
+            PendingChunk:
                 - doc_id: 文件識別碼
-                - chunk_index: chunk 在文件中的順序
+                - content: chunk 文字內容
+                - metadata: 保留來源 metadata
+                - local_chunk_index: 文件內 chunk 順序
         """
         pass

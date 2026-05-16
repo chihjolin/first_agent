@@ -1,28 +1,20 @@
 from abc import ABC, abstractmethod
 from typing import Iterator
 
-from src.worker.ingestion.domain.models import IngestionDocument
-
-# from langchain_core.documents import Document
+from src.worker.ingestion.domain.models import ParsedDocument
 
 
 class BaseParser(ABC):
     """
-    文件解析器抽象基底類別 (Strategy Pattern)
+    文件解析器抽象基底類別(Strategy Pattern)。
 
-    設計目的：
-    - 定義「檔案 → 結構化文字資料」的統一介面
-    - 支援多種資料來源(PDF / Word / TXT / URL)
-    - 與上層 Pipeline 解耦，讓 Parser 可自由替換
+    負責將不同來源的檔案(PDF / Word / TXT / URL)
+    解析為系統內部統一的 Domain Model。
 
-    設計重點：
-    本層「不依賴任何第三方框架(例如 LangChain)」，
-    僅回傳系統內部定義的 IngestionDocument(Domain Model)。
-
-    這樣的好處：
-    - 未來可替換 LangChain / LlamaIndex / 自研 pipeline
-    - Parser 不會被特定框架綁死
-    - 提高系統可維護性與可擴展性
+    設計原則：
+    - 與上層 Pipeline 解耦
+    - 不暴露第三方框架型別
+    - 使用 streaming(yield) 降低記憶體消耗
     """
 
     @abstractmethod
@@ -30,9 +22,9 @@ class BaseParser(ABC):
         self,
         file_path: str,
         file_name: str,
-    ) -> Iterator[IngestionDocument]:
+    ) -> Iterator[ParsedDocument]:
         """
-        將實體檔案解析為系統內部的 IngestionDocument(串流輸出）。
+        將實體檔案解析為 ParsedDocument 串流。
 
         設計說明：
         - 使用 Iterator (yield) 逐頁 / 逐段產出資料
@@ -44,8 +36,8 @@ class BaseParser(ABC):
             file_name (str): 原始檔案名稱（用於 metadata)
 
         Yields:
-            IngestionDocument:
+            ParsedDocument:
                 - content: 純文字內容
-                - metadata: 與來源相關的資訊（例如 page、source)
+                - metadata: 與來源相關的資訊(例如 page、source)
         """
         pass

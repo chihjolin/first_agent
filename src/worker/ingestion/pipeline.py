@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 def run_ingestion_pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     執行文件解析與向量化流水線
+    stateful orchestrator
 
     Args:
         payload (Dict[str, Any]):
@@ -51,6 +52,42 @@ def run_ingestion_pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
     # TODO: (feature/05) 這裡未來會接上 PyMuPDF 與 Embedding 模型
     # 模擬耗時的 PDF 解析與 Embedding 呼叫 (不佔用資料庫連線)
     time.sleep(8)  # MVP 階段模擬 PDF 切塊與 Embedding 的時間
+
+    """
+    parser = PDFParser()
+    chunker = TextChunker()
+
+    global_chunk_index = 0
+
+    parsed_stream = parser.parse(file_path, file_name)
+
+    for parsed_doc in parsed_stream:
+
+        ingestion_doc = IngestionDocument(
+            doc_id=task_id,
+            content=parsed_doc.content,
+            metadata=parsed_doc.metadata,
+        )
+
+        pending_chunks = chunker.chunk(ingestion_doc)
+
+        for pending_chunk in pending_chunks:
+
+            finalized_chunk = Chunk(
+                chunk_id=f"{task_id}:{global_chunk_index}",
+                doc_id=task_id,
+                chunk_index=global_chunk_index,
+                content=pending_chunk.content,
+                metadata={
+                    **pending_chunk.metadata,
+                    "global_chunk_index": global_chunk_index,
+                },
+            )
+
+            global_chunk_index += 1
+
+            yield finalized_chunk
+    """
 
     # 3. 只有在真正需要寫入 Chunk 時，才開啟極短的 DB 連線
     # with get_sync_db() as session:

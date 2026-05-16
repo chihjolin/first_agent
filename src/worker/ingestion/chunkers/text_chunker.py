@@ -1,155 +1,71 @@
 from typing import Iterator
 
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 from src.shared.core.logger import get_logger
 from src.worker.ingestion.chunkers.base import BaseChunker
 from src.worker.ingestion.domain.exceptions import ChunkingException
-from src.worker.ingestion.domain.models import Chunk, IngestionDocument
-
-# from langchain_core.documents import Document
-# from langchain_text_splitters import RecursiveCharacterTextSplitter
-
+from src.worker.ingestion.domain.models import IngestionDocument, PendingChunk
 
 logger = get_logger(__name__)
 
 
 class TextChunker(BaseChunker):
-    """
-    基礎文字切塊器(Character-based Chunking)
-
-    設計目標：
-        - 將長文本切分為適合 embedding 的 chunk
-        - 保留 chunk overlap，降低語意斷裂
-        - 與 framework 完全解耦
-        - 使用 streaming(yield)降低記憶體使用
-
-    注意：
-    目前使用 character-based chunking(MVP)
-    未來可升級：
-        - token-aware chunking
-        - semantic chunking
-        - markdown-aware chunking
-    """
 
     def __init__(
         self,
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
     ):
-        """
-        初始化 Chunker
 
-        Args:
-            chunk_size:
-                每個 chunk 最大字元數
-
-            chunk_overlap:
-                chunk 間重疊字元數
-
-        overlap設計目的:
-        embedding model 沒有「記憶」，overlap 可以保留語意連續性。
-        """
-
-        if chunk_size <= 0:
-            raise ValueError("chunk_size must be > 0")
-
-        if chunk_overlap < 0:
-            raise ValueError("chunk_overlap must be >= 0")
-
-        if chunk_overlap >= chunk_size:
-            raise ValueError("chunk_overlap must be smaller than chunk_size")
-
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
+        self.splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators=[
+                "\n\n",  # 1.優先 paragraph
+                "\n",  # 2.再 sentence-ish
+                " ",  # 3.再 word
+                "",  # 4.最後才 character
+            ],
+        )
 
     def chunk(
         self,
         document: IngestionDocument,
-    ) -> Iterator[Chunk]:
+    ) -> Iterator[PendingChunk]:
 
         logger.info(
             "[TextChunker] Start chunking document. doc_id=%s",
             document.doc_id,
         )
-        """
-        將 IngestionDocument 切成多個 Chunk
-
-        為什麼用 Iterator(yield)?
-
-        因為：
-        - chunk 數量可能非常大
-        - 不想一次建立整個 list
-        - 可以 streaming pipeline
-
-        Parser:
-            yield document
-
-        Chunker:
-            yield chunk
-
-        Embedder:
-            consume chunk
-
-        整條 pipeline 可以做到：
-            「邊解析 → 邊切塊 → 邊 embedding」
-
-        非常省記憶體。
-        """
 
         try:
-            text = document.content
 
-            # doc_id 非常重要，未來 retrieval 時：chunk -> doc，都靠 doc_id 關聯，所以 pipeline 一定要保證存在。
+            # retrieval 與 traceability 依賴 doc_id 關聯(pipeline 一定要保證其存在)
             if not document.doc_id:
                 raise ValueError("document.doc_id is required")
 
-            doc_id = document.doc_id
+            # 1. 純粹的字串切塊: 利用 LangChain 的演算法進行智能切塊 (這只是內部實作，沒有污染對外的 Domain Model)
+            texts = self.splitter.split_text(document.content)
 
-            if not text.strip():
-                return
+            for local_index, text in enumerate(texts):
 
-            chunk_index = 0
+                # Recursive splitter 有時會產出"  "
+                text = text.strip()
 
-            # chunk 起點
-            start = 0
-
-            while start < len(text):
-
-                # chunk 終點: min()避免超出文字長度
-                end = min(
-                    start + self.chunk_size,
-                    len(text),
-                )
-                chunk_text = text[start:end].strip()
-
-                # 跳過空chunk
-                if not chunk_text:
-                    start = end
+                if not text:
                     continue
 
-                # 建立 chunk metadata(不要直接修改：document.metadata["xxx"] = yyy，避免污染原始 document。所以用dict copy)
-                metadata = {
-                    **document.metadata,
-                    "chunk_index": chunk_index,
-                    "chunk_start": start,
-                    "chunk_end": end,
-                }
+                # 2. 建立乾淨的 metadata 副本 (只負責這份 document 自己知道的資訊)
+                metadata = document.metadata.copy()
 
-                yield Chunk(
-                    content=chunk_text,
+                # 3. 產出 PendingChunk
+                yield PendingChunk(
+                    doc_id=document.doc_id,
+                    content=text,
                     metadata=metadata,
-                    doc_id=document.doc_id or "",
-                    chunk_index=chunk_index,
+                    local_chunk_index=local_index,
                 )
-
-                chunk_index += 1
-
-                # 下一段起點: start = end - overlap，保留語意完整性
-                start = end - self.chunk_overlap
-
-            logger.info(
-                "[TextChunker] Completed chunking. total_chunks=%d",
-                chunk_index,
-            )
 
         except Exception as e:
             logger.error(
