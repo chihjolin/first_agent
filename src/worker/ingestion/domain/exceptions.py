@@ -15,8 +15,12 @@ class ParserException(IngestionException):
 
 
 class ChunkingException(IngestionException):
+    """文件切塊過程發生錯誤（例如 chunking 策略失敗或內容異常）"""
+
     pass
 
 
 class EmbeddingException(IngestionException):
+    """向量化過程發生錯誤 (外部模型連線逾時或斷線等非預期錯誤)"""
+
     pass

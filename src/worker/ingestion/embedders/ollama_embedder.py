@@ -1,0 +1,91 @@
+import os
+from typing import List, Sequence
+
+from langchain_ollama import OllamaEmbeddings
+
+from src.shared.core.logger import get_logger
+from src.worker.ingestion.domain.exceptions import EmbeddingException
+from src.worker.ingestion.domain.models import Chunk, EmbeddedChunk
+from src.worker.ingestion.embedders.base import BaseEmbedder
+
+logger = get_logger(__name__)
+
+
+class OllamaEmbedder(BaseEmbedder):
+    """
+    基於 Ollama 的向量嵌入器
+    """
+
+    def __init__(
+        self,
+        model_name: str = "nomic-embed-text",
+        base_url: str = os.getenv(
+            "OLLAMA_BASE_URL",
+            "http://localhost:11434",
+        ),
+        expected_dimension: int = 768,
+    ):
+        logger.info("[OllamaEmbedder] 初始化模型: %s (URL: %s)", model_name, base_url)
+        self.embeddings_model = OllamaEmbeddings(
+            model=model_name,
+            base_url=base_url,
+        )
+
+        self.expected_dimension = expected_dimension
+
+    def embed_batch(self, chunks: Sequence[Chunk]) -> List[EmbeddedChunk]:
+
+        if not chunks:
+            return []
+
+        logger.info("[OllamaEmbedder] 準備批次向量化，共 %d 個 Chunk", len(chunks))
+
+        try:
+            # 抽取模型真正需要的輸入資料（純文字)
+            texts = [chunk.content for chunk in chunks]
+
+            # 使用批次向量化以提升吞吐量與 GPU 利用率
+            embeddings_list = self.embeddings_model.embed_documents(texts)
+
+            # 將 embedding 結果映射回 Domain Model
+            embedded_chunks = []
+            for chunk, embedding in zip(chunks, embeddings_list, strict=True):
+
+                # 驗證模型輸出的向量維度是否符合預期
+                if len(embedding) != self.expected_dimension:
+                    raise EmbeddingException(
+                        f"Embedding dimension mismatch: "
+                        f"expected={self.expected_dimension}, "
+                        f"got={len(embedding)}"
+                    )
+
+                embedded_chunks.append(
+                    EmbeddedChunk(
+                        chunk_id=chunk.chunk_id,
+                        doc_id=chunk.doc_id,
+                        chunk_index=chunk.chunk_index,
+                        content=chunk.content,
+                        # 避免共享 mutable metadata 導致資料污染
+                        metadata=chunk.metadata.copy(),
+                        # 正規化 provider-specific numeric types
+                        embedding=list(
+                            map(float, embedding)
+                        ),  # 確保這是 List[float](infrastructure boundary 做 normalization)
+                    )
+                )
+
+            logger.debug("[OllamaEmbedder] 批次向量化完成！")
+            return embedded_chunks
+
+        except EmbeddingException:
+            raise
+
+        except Exception as e:
+            logger.error(
+                "[OllamaEmbedder] 批次向量化失敗: %s",
+                str(e),
+                exc_info=True,
+            )
+            raise EmbeddingException(
+                f"Failed to embed batch of {len(chunks)} chunks"
+            ) from e
