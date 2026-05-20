@@ -18,7 +18,7 @@ class TextChunker(BaseChunker):
         chunk_overlap: int = 200,
     ):
 
-        self.splitter = RecursiveCharacterTextSplitter(
+        self._splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=[
@@ -46,7 +46,7 @@ class TextChunker(BaseChunker):
                 raise ValueError("document.doc_id is required")
 
             # 1. 純粹的字串切塊: 利用 LangChain 的演算法進行智能切塊 (這只是內部實作，沒有污染對外的 Domain Model)
-            texts = self.splitter.split_text(document.content)
+            texts = self._splitter.split_text(document.content)
 
             for local_index, text in enumerate(texts):
 

@@ -18,5 +18,6 @@ def process_document(self, task_id: str, payload: dict):
     return run_worker_task(
         task_id,
         run_ingestion_pipeline,
-        payload,
+        task_id,  # 傳遞給 ingestion pipeline 的第一個參數
+        payload,  # 傳遞給 ingestion pipeline 的第二個參數
     )

@@ -1,32 +1,27 @@
-"""
-Document Ingestion Pipeline 業務邏輯
-
-工作流程：驗證實體檔案 -> 解析文件 (Load) -> 文件切塊 (Chunk) -> 呼叫 Embedding 模型 -> 寫入 Vector DB
-"""
-
 import os
-import time
-from typing import Any, Dict
-
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List
 
 from src.domain.exceptions import DomainFileNotFoundError
 from src.shared.core.logger import get_logger
 from src.shared.db.crud.sync.document import DocumentChunkSyncRepository
+from src.shared.db.models import DocumentChunk
 from src.shared.db.session import get_sync_db
+from src.worker.ingestion.chunkers.text_chunker import TextChunker
+from src.worker.ingestion.domain.models import Chunk, IngestionDocument
+from src.worker.ingestion.embedders.ollama_embedder import OllamaEmbedder
+from src.worker.ingestion.parsers.pdf_parser import PDFParser
 
 logger = get_logger(__name__)
 
 
-def run_ingestion_pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
+def run_ingestion_pipeline(task_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     """
-    執行文件解析與向量化流水線
-    stateful orchestrator
+    執行文件解析與向量化流水線 (Stateful Orchestrator)
+    負責協調 Parser(串流) -> Chunker(串流) -> Embedder(批次) -> DB(批次)
 
     Args:
-        payload (Dict[str, Any]):
-            file_path: 實體檔案在 Volume 中的絕對路徑
-            file_name: 原始檔案名稱
+        task_id (str): 任務 UUID，將直接作為文件的 doc_id 使用
+        payload (Dict[str, Any]): 包含 file_path 與 file_name
 
     Returns:
         Dict[str, Any]: 處理完成的 Meta 資訊 (將寫入 Task.result)
@@ -49,59 +44,108 @@ def run_ingestion_pipeline(payload: Dict[str, Any]) -> Dict[str, Any]:
         "[Ingestion Worker] File verified. Starting parsing for %s...", file_name
     )
 
-    # TODO: (feature/05) 這裡未來會接上 PyMuPDF 與 Embedding 模型
-    # 模擬耗時的 PDF 解析與 Embedding 呼叫 (不佔用資料庫連線)
-    time.sleep(8)  # MVP 階段模擬 PDF 切塊與 Embedding 的時間
-
-    """
+    # 1. 實例化三大器官
     parser = PDFParser()
     chunker = TextChunker()
+    embedder = OllamaEmbedder()
 
+    # 2. 狀態與批次控制變數
     global_chunk_index = 0
+    BATCH_SIZE = (
+        100  # 每 100 個(後續要抽 settings) Chunk 呼叫一次 Embedding 與 DB Insert
+    )
+    chunk_buffer: List[Chunk] = []
 
-    parsed_stream = parser.parse(file_path, file_name)
+    logger.info("[Ingestion Pipeline] Task %s: Starting ingestion pipeline...", task_id)
 
-    for parsed_doc in parsed_stream:
+    # 內部 Helper: 負責將 Buffer 清空、轉向量、並寫入 DB
+    def _flush_buffer(buffer: list[Chunk]) -> None:
+        if not buffer:
+            return
 
-        ingestion_doc = IngestionDocument(
-            doc_id=task_id,
-            content=parsed_doc.content,
-            metadata=parsed_doc.metadata,
-        )
+        # Phase 3: 批次轉向量
+        embedded_chunks = embedder.embed_batch(buffer)
 
-        pending_chunks = chunker.chunk(ingestion_doc)
+        # Phase 4: 批次寫入 PostgreSQL
+        # 貫徹「短連線原則」，只有要寫入的這一瞬間才開啟 Session
+        with get_sync_db() as session:
+            repo = DocumentChunkSyncRepository(session)
 
-        for pending_chunk in pending_chunks:
+            # 將 Domain Model 轉換為 SQLAlchemy Model
+            db_records = [
+                DocumentChunk(
+                    document_id=ec.doc_id,
+                    chunk_index=ec.chunk_index,
+                    content=ec.content,
+                    embedding=ec.embedding,
+                    metadata_=ec.metadata,
+                )
+                for ec in embedded_chunks
+            ]
 
-            finalized_chunk = Chunk(
-                chunk_id=f"{task_id}:{global_chunk_index}",
+            repo.create_many(db_records)
+
+            logger.debug(
+                "[Ingestion Pipeline] 成功批次寫入 %d 筆 Chunk 進入資料庫", len(buffer)
+            )
+            buffer.clear()  # 清空緩衝區，釋放記憶體
+
+    # ==========================================
+    # 核心資料流 (The Data Flow)
+    # ==========================================
+    try:
+        # Phase 1: 串流解析
+        parsed_stream = parser.parse(file_path, file_name)
+
+        for parsed_doc in parsed_stream:
+            # 轉換為 IngestionDocument (注入 doc_id)
+            ingestion_doc = IngestionDocument(
                 doc_id=task_id,
-                chunk_index=global_chunk_index,
-                content=pending_chunk.content,
-                metadata={
-                    **pending_chunk.metadata,
-                    "global_chunk_index": global_chunk_index,
-                },
+                content=parsed_doc.content,
+                metadata=parsed_doc.metadata,
             )
 
-            global_chunk_index += 1
+            # Phase 2: 串流切塊
+            pending_chunks = chunker.chunk(ingestion_doc)
 
-            yield finalized_chunk
-    """
+            for pending_chunk in pending_chunks:
+                # 注入全域狀態
+                finalized_chunk = Chunk(
+                    chunk_id=f"{task_id}:{global_chunk_index}",
+                    doc_id=task_id,
+                    chunk_index=global_chunk_index,
+                    content=pending_chunk.content,
+                    metadata=pending_chunk.metadata,
+                )
 
-    # 3. 只有在真正需要寫入 Chunk 時，才開啟極短的 DB 連線
-    # with get_sync_db() as session:
-    #     repo = DocumentChunkSyncRepository(session)
-    #     repo.create_many([DocumentChunk(content=c.text, embedding=e) for c, e in zip(chunks, embeddings)])
+                chunk_buffer.append(finalized_chunk)
+                global_chunk_index += 1
 
-    # 模擬向量化完成的 Meta 資訊
+                # 當緩衝區滿了，執行一次批次寫入 (Flush)
+                if len(chunk_buffer) >= BATCH_SIZE:
+                    _flush_buffer(chunk_buffer)
+
+        # 迴圈結束後，把剩下的尾數清空寫入
+        if chunk_buffer:
+            _flush_buffer(chunk_buffer)
+
+    except Exception:
+        logger.exception(
+            "[Ingestion Pipeline] Task %s: Pipeline failed during execution", task_id
+        )
+        raise
+
+    # 回傳 Meta 資訊給 Task 狀態機
     result_payload = {
         "file_name": file_name,
-        "total_chunks": 42,
-        "embedding_model": "text-embedding-3-small-mock",
-        "status": "Vectorized and stored in pgvector",
+        "total_chunks": global_chunk_index,
+        "embedding_model": embedder.embeddings_model.model,
+        "status": "Vectorized and stored in pgvector successfully",
     }
 
-    logger.info("[Ingestion Pipeline] Pipeline completed successfully")
-
+    logger.info(
+        "[Ingestion Pipeline] Task %s: Completed successfully. Total chunks: %d",
+        task_id,
+        global_chunk_index,
+    )
     return result_payload
