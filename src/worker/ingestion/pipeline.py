@@ -1,8 +1,9 @@
+import logging
 import os
 from typing import Any, Dict, List
 
 from src.domain.exceptions import DomainFileNotFoundError
-from src.shared.core.logger import get_logger
+from src.shared.core.config import settings
 from src.shared.db.crud.sync.document import DocumentChunkSyncRepository
 from src.shared.db.models import DocumentChunk
 from src.shared.db.session import get_sync_db
@@ -11,7 +12,7 @@ from src.worker.ingestion.domain.models import Chunk, IngestionDocument
 from src.worker.ingestion.embedders.ollama_embedder import OllamaEmbedder
 from src.worker.ingestion.parsers.pdf_parser import PDFParser
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def run_ingestion_pipeline(task_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -51,9 +52,12 @@ def run_ingestion_pipeline(task_id: str, payload: Dict[str, Any]) -> Dict[str, A
 
     # 2. 狀態與批次控制變數
     global_chunk_index = 0
-    BATCH_SIZE = (
-        100  # 每 100 個(後續要抽 settings) Chunk 呼叫一次 Embedding 與 DB Insert
-    )
+
+    batch_size = (
+        settings.EMBEDDING_BATCH_SIZE
+    )  # 每 N個 Chunk 呼叫一次 Embedding 與 DB Insert
+
+    logger.info("batch size=%d", batch_size)
     chunk_buffer: List[Chunk] = []
 
     logger.info("[Ingestion Pipeline] Task %s: Starting ingestion pipeline...", task_id)
@@ -62,6 +66,16 @@ def run_ingestion_pipeline(task_id: str, payload: Dict[str, Any]) -> Dict[str, A
     def _flush_buffer(buffer: list[Chunk]) -> None:
         if not buffer:
             return
+
+        current_batch_size = len(buffer)
+
+        logger.info(
+            "[Ingestion Pipeline] Processing chunk batch. "
+            "task_id=%s batch_size=%d accumulated_chunks=%d",
+            task_id,
+            current_batch_size,
+            global_chunk_index,
+        )
 
         # Phase 3: 批次轉向量
         embedded_chunks = embedder.embed_batch(buffer)
@@ -85,10 +99,19 @@ def run_ingestion_pipeline(task_id: str, payload: Dict[str, Any]) -> Dict[str, A
 
             repo.create_many(db_records)
 
-            logger.debug(
-                "[Ingestion Pipeline] 成功批次寫入 %d 筆 Chunk 進入資料庫", len(buffer)
-            )
-            buffer.clear()  # 清空緩衝區，釋放記憶體
+            # logger.debug(
+            #     "[Ingestion Pipeline] 成功批次寫入 %d 筆 Chunk 進入資料庫", len(buffer)
+            # )
+
+        logger.info(
+            "[Ingestion Pipeline] Batch persisted successfully. "
+            "task_id=%s batch_size=%d total_chunks=%d",
+            task_id,
+            current_batch_size,
+            global_chunk_index,
+        )
+
+        buffer.clear()  # 清空緩衝區，釋放記憶體
 
     # ==========================================
     # 核心資料流 (The Data Flow)
@@ -122,7 +145,7 @@ def run_ingestion_pipeline(task_id: str, payload: Dict[str, Any]) -> Dict[str, A
                 global_chunk_index += 1
 
                 # 當緩衝區滿了，執行一次批次寫入 (Flush)
-                if len(chunk_buffer) >= BATCH_SIZE:
+                if len(chunk_buffer) >= batch_size:
                     _flush_buffer(chunk_buffer)
 
         # 迴圈結束後，把剩下的尾數清空寫入

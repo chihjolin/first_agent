@@ -12,13 +12,13 @@ Celery Worker Task Runner (Worker Orchestration Layer)
 - task_runner 專注在「任務如何被執行」
 """
 
+import logging
 from typing import Any, Callable, Dict
 
-from src.shared.core.logger import get_logger
 from src.shared.db.session import get_sync_db
 from src.worker.services.task_state import TaskStateService
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def run_worker_task(

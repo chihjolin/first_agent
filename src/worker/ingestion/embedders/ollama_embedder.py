@@ -1,14 +1,15 @@
+import logging
 import os
 from typing import List, Sequence
 
 from langchain_ollama import OllamaEmbeddings
 
-from src.shared.core.logger import get_logger
+from src.shared.core.config import settings
 from src.worker.ingestion.domain.exceptions import EmbeddingException
 from src.worker.ingestion.domain.models import Chunk, EmbeddedChunk
 from src.worker.ingestion.embedders.base import BaseEmbedder
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class OllamaEmbedder(BaseEmbedder):
@@ -18,27 +19,37 @@ class OllamaEmbedder(BaseEmbedder):
 
     def __init__(
         self,
-        model_name: str = "nomic-embed-text",
-        base_url: str = os.getenv(
-            "OLLAMA_BASE_URL",
-            "http://localhost:11434",
-        ),
-        expected_dimension: int = 768,
+        model_name: str | None = None,
+        base_url: str | None = None,
+        expected_dimension: int | None = None,
     ):
-        logger.info("[OllamaEmbedder] 初始化模型: %s (URL: %s)", model_name, base_url)
-        self.embeddings_model = OllamaEmbeddings(
-            model=model_name,
-            base_url=base_url,
+
+        _model_name = model_name or settings.OLLAMA_EMBED_MODEL
+        # _base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        _base_url = base_url or settings.OLLAMA_BASE_URL
+        self.expected_dimension = expected_dimension or settings.EMBEDDING_DIMENSION
+
+        logger.debug(
+            "[OllamaEmbedder] Initialized model=%s base_url=%s",
+            _model_name,
+            _base_url,
         )
 
-        self.expected_dimension = expected_dimension
+        self.embeddings_model = OllamaEmbeddings(
+            model=_model_name,
+            base_url=_base_url,
+        )
 
     def embed_batch(self, chunks: Sequence[Chunk]) -> List[EmbeddedChunk]:
 
         if not chunks:
             return []
 
-        logger.info("[OllamaEmbedder] 準備批次向量化，共 %d 個 Chunk", len(chunks))
+        logger.info(
+            "[OllamaEmbedder] Start embedding: chunk batch_size=%d model=%s",
+            len(chunks),
+            self.embeddings_model.model,
+        )
 
         try:
             # 抽取模型真正需要的輸入資料（純文字)
@@ -74,7 +85,11 @@ class OllamaEmbedder(BaseEmbedder):
                     )
                 )
 
-            logger.debug("[OllamaEmbedder] 批次向量化完成！")
+            logger.info(
+                "[OllamaEmbedder] Completed embedding batch_size=%d",
+                len(embedded_chunks),
+            )
+
             return embedded_chunks
 
         except EmbeddingException:

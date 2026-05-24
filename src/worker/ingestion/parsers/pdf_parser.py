@@ -1,16 +1,13 @@
+import logging
 from typing import Iterator, cast
 
 import fitz  # type: ignore
 
-from src.shared.core.logger import get_logger
 from src.worker.ingestion.domain.exceptions import ParserException
 from src.worker.ingestion.domain.models import ParsedDocument
 from src.worker.ingestion.parsers.base import BaseParser
 
-# from langchain_core.documents import Document
-
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PDFParser(BaseParser):
@@ -55,7 +52,8 @@ class PDFParser(BaseParser):
                     )
 
                 logger.info(
-                    "[PDFParser] Completed parsing. total_pages=%d, extracted_pages=%d",
+                    "[PDFParser] Completed parsing file=%s total_pages=%d extracted_pages=%d",
+                    file_name,
                     total_pages,
                     extracted_pages,
                 )
