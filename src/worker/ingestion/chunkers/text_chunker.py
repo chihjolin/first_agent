@@ -19,8 +19,14 @@ class TextChunker(BaseChunker):
         chunk_overlap: int | None = None,
     ):
         # 外部沒傳就讀設定檔，外部有傳就聽外部的
-        _chunk_size = chunk_size or settings.CHUNK_SIZE
-        _chunk_overlap = chunk_overlap or settings.CHUNK_OVERLAP
+        _chunk_size = (
+            chunk_size if chunk_size is not None else settings.chunking.chunk_size
+        )
+        _chunk_overlap = (
+            chunk_overlap
+            if chunk_overlap is not None
+            else settings.chunking.chunk_overlap
+        )
 
         self._splitter = RecursiveCharacterTextSplitter(
             chunk_size=_chunk_size,

@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import List, Sequence
 
 from langchain_ollama import OllamaEmbeddings
@@ -24,10 +23,13 @@ class OllamaEmbedder(BaseEmbedder):
         expected_dimension: int | None = None,
     ):
 
-        _model_name = model_name or settings.OLLAMA_EMBED_MODEL
-        # _base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        _base_url = base_url or settings.OLLAMA_BASE_URL
-        self.expected_dimension = expected_dimension or settings.EMBEDDING_DIMENSION
+        _model_name = model_name if model_name is not None else settings.embedding.model
+        _base_url = base_url if base_url is not None else settings.OLLAMA_BASE_URL
+        self.expected_dimension = (
+            expected_dimension
+            if expected_dimension is not None
+            else settings.embedding.dimension
+        )
 
         logger.debug(
             "[OllamaEmbedder] Initialized model=%s base_url=%s",

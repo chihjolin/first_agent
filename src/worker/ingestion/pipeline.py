@@ -54,7 +54,7 @@ def run_ingestion_pipeline(task_id: str, payload: Dict[str, Any]) -> Dict[str, A
     global_chunk_index = 0
 
     batch_size = (
-        settings.EMBEDDING_BATCH_SIZE
+        settings.embedding.batch_size
     )  # 每 N個 Chunk 呼叫一次 Embedding 與 DB Insert
 
     logger.info("batch size=%d", batch_size)
