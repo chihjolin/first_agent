@@ -1,17 +1,3 @@
-"""
-Celery Worker Task Runner (Worker Orchestration Layer)
-
-核心職責：
-- 統一管理任務的狀態機流轉 (PENDING -> PROCESSING -> COMPLETED / FAILED)
-- 統一攔截錯誤並觸發 Celery 重試機制
-- 確保資料庫連線 (DB Session) 是短暫且高效的，不被耗時邏輯阻塞
-
-設計原則：
-- Worker 的 orchestration 與業務邏輯分離
-- workflow / pipeline 專注在「任務要做什麼」
-- task_runner 專注在「任務如何被執行」
-"""
-
 import logging
 from typing import Any, Callable, Dict
 
@@ -28,12 +14,23 @@ def run_worker_task(
     **kwargs,
 ) -> Dict[str, Any]:
     """
-    Worker 任務通用排程器 (Wrapper)
+    Celery Worker Task Runner (Worker Orchestration Layer)
+
+    核心職責：
+        - 統一管理任務的狀態機流轉 (PENDING -> PROCESSING -> COMPLETED / FAILED)
+        - 統一攔截錯誤並觸發 Celery 重試機制
+        - 確保資料庫連線 (DB Session) 是短暫且高效的，不被耗時邏輯阻塞
+
+    設計原則：
+        - Worker 的 orchestration 與業務邏輯分離
+        - workflow / pipeline 專注在「任務要做什麼」
+        - task_runner 專注在「任務如何被執行」
 
     Args:
         task_id (str): 任務 UUID
         workflow (Callable): 實際要執行的耗時業務邏輯函式
-        *args, **kwargs: 傳遞給 workflow 的具體參數
+        *args: 傳遞給 workflow 的具體參數
+        **kwargs: 傳遞給 workflow 的具體參數
     """
     logger.info("[Task %s] Worker task started", task_id)
     result = None

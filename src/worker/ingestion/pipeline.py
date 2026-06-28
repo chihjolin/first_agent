@@ -57,7 +57,6 @@ def run_ingestion_pipeline(task_id: str, payload: Dict[str, Any]) -> Dict[str, A
         settings.embedding.batch_size
     )  # 每 N個 Chunk 呼叫一次 Embedding 與 DB Insert
 
-    logger.info("batch size=%d", batch_size)
     chunk_buffer: List[Chunk] = []
 
     logger.info("[Ingestion Pipeline] Task %s: Starting ingestion pipeline...", task_id)
