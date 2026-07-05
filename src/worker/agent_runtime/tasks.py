@@ -1,3 +1,12 @@
+print("TASK MODULE IMPORTED")
+
+from src.shared.core.logging import setup_logging
+
+setup_logging()
+
+print("LOGGING CONFIGURED")
+
+
 from src.shared.core.celery_app import celery_app
 from src.worker.agent_runtime.workflows import run_agent_workflow
 from src.worker.utils.task_runner import run_worker_task

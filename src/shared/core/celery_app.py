@@ -25,6 +25,8 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="Asia/Taipei",
     enable_utc=True,
+    # 關閉 Celery 對 root logger 的接管
+    worker_hijack_root_logger=False,
 )
 
 # routing table 生效是 針對 Celery 任務名稱

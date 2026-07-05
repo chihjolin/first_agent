@@ -4,16 +4,16 @@ Agent Inference Workflow 業務邏輯
 工作流程：接收使用者 Query -> 檢索 Context (RAG) -> 呼叫 LLM -> 儲存對話紀錄 -> 回傳結果
 """
 
+import logging
 import time
 from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from src.shared.core.logger import get_logger
 from src.shared.db.crud.sync.chat import ChatSessionSyncRepository
 from src.shared.db.session import get_sync_db
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def run_agent_workflow(payload: Dict[str, Any]) -> Dict[str, Any]:

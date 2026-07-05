@@ -34,25 +34,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # ==========================================
-# 3. 安全且防呆的 DATABASE_URL 組裝
+# 3. 從 config 讀取 DATABASE_URL
 # ==========================================
-DATABASE_URL = settings.DATABASE_URL
-# 解決本機開發 settings.DATABASE_URL 為 None 的問題
-if not DATABASE_URL:
-    DATABASE_URL = (
-        f"postgresql+asyncpg://"
-        f"{settings.POSTGRES_USER}:"
-        f"{settings.POSTGRES_PASSWORD}@"
-        f"{settings.POSTGRES_HOST}:"
-        f"{settings.POSTGRES_HOST_PORT}/"
-        f"{settings.POSTGRES_DB}"
-    )
+DATABASE_URL = settings.DATABASE_URL_ASYNC
 
-# 專家的防護網：確保最後一定有值
-if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL is not set for Alembic. Please check your .env or .env.local configuration."
-    )
 
 # ==========================================
 # 4. 覆寫連線 URL 與設定 MetaData

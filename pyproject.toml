@@ -27,7 +27,9 @@ dependencies = [
     "tiktoken (>=0.12.0,<0.13.0)",
     "python-dotenv (>=1.2.2,<2.0.0)",
     "aiofiles (>=25.1.0,<26.0.0)",
-    "python-multipart (>=0.0.22,<0.0.23)"
+    "python-multipart (>=0.0.22,<0.0.23)",
+    "pymupdf (>=1.27.2.3,<2.0.0.0)",
+    "langchain-text-splitters (>=1.1.2,<2.0.0)"
 ]
 
 

@@ -1,13 +1,13 @@
+import logging
 from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
 from src.domain.exceptions import InvalidTaskStateTransition, TaskNotFoundError
-from src.shared.core.logger import get_logger
 from src.shared.db.crud.sync.task import TaskSyncRepository
 from src.shared.db.models import Task, TaskStatus
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class TaskStateService:

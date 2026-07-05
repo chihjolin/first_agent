@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pgvector.sqlalchemy import Vector  # type: ignore
-from sqlalchemy import DateTime, Enum, String, Text, func
+from sqlalchemy import DateTime, Enum, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -102,6 +102,9 @@ class DocumentChunk(Base):
     document_id: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True
     )  # 關聯原始檔案名稱或 ID; 建立索引以加速搜尋
+
+    # [新增] 記錄這是該文件的第幾個切塊，確保上下文順序
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)  # 切塊後的真實文字內容
 
     # pgvector 欄位

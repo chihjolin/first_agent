@@ -1,0 +1,69 @@
+import logging
+from typing import Iterator, cast
+
+import fitz  # type: ignore
+
+from src.worker.ingestion.domain.exceptions import ParserException
+from src.worker.ingestion.domain.models import ParsedDocument
+from src.worker.ingestion.parsers.base import BaseParser
+
+logger = logging.getLogger(__name__)
+
+
+class PDFParser(BaseParser):
+
+    def parse(self, file_path: str, file_name: str) -> Iterator[ParsedDocument]:
+        logger.info("[PDFParser] Start parsing file: %s", file_name)
+
+        try:
+            # 使用 context manager，確保檔案資源一定會被釋放
+            # doc: fitz.Document
+            with fitz.open(file_path) as doc:
+
+                total_pages = doc.page_count
+                extracted_pages = 0
+
+                # 逐頁解析 PDF（避免一次載入）
+                for page_index in range(total_pages):
+
+                    # 取得第 page_index 頁(page object)
+                    page = doc.load_page(page_index)
+
+                    # 將 PDF page 轉為純文字
+                    text = cast(str, page.get_text("text"))
+
+                    # 基礎清理：移除前後空白
+                    text = text.strip()
+
+                    # 如果是空頁則跳過（節省後續計算資源）
+                    if not text:
+                        continue
+
+                    extracted_pages += 1
+
+                    # 回傳 domain model (不依賴 LangChain)
+                    yield ParsedDocument(
+                        content=text,
+                        metadata={
+                            "source": file_name,  # RAG trace
+                            "page": page_index + 1,  # 使用者page編號習慣從1開始
+                            "file_type": "pdf",  # multi-parser
+                        },
+                    )
+
+                logger.info(
+                    "[PDFParser] Completed parsing file=%s total_pages=%d extracted_pages=%d",
+                    file_name,
+                    total_pages,
+                    extracted_pages,
+                )
+
+        except Exception as e:
+            logger.error(
+                "[PDFParser] Failed to parse PDF (%s): %s",
+                file_name,
+                str(e),
+                exc_info=True,
+            )
+            # 統一轉為 ParserException（供上層控制 retry / logging; from e: 保留原始 stack trace
+            raise ParserException(f"Failed to parse PDF: {file_name}") from e
