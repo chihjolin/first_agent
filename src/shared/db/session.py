@@ -11,23 +11,9 @@ from src.shared.core.logger import get_logger
 logger = get_logger(__name__)
 
 # ==========================================
-# 獲取或組裝 DATABASE_URL_ASYNC/DATABASE_URL_SYNC
+# 從settings讀取 DATABASE_URL_ASYNC/DATABASE_URL_SYNC
 # ==========================================
-# 優先使用 Docker 注入的 URL(ASYNC)
 DATABASE_URL_ASYNC = settings.DATABASE_URL_ASYNC
-
-# 如果沒有 DATABASE_URL_ASYNC，代表現在是「本機開發/Alembic 執行環境」，依賴 Pydantic 驗證過的安全屬性來組裝
-if not DATABASE_URL_ASYNC:
-    DATABASE_URL_ASYNC = (
-        f"postgresql+asyncpg://"
-        f"{settings.POSTGRES_USER}:"
-        f"{settings.POSTGRES_PASSWORD}@"
-        f"{settings.POSTGRES_HOST}:"
-        f"{settings.POSTGRES_HOST_PORT}/"
-        f"{settings.POSTGRES_DB}"
-    )
-    logger.info("Local environment detected. Constructed DATABASE_URL from settings.")
-
 
 # 專業寫法: 建立 URL 物件
 url_obj_async = make_url(DATABASE_URL_ASYNC)
@@ -40,19 +26,6 @@ logger.info(
 
 # SYNC版本(Worker 使用)
 DATABASE_URL_SYNC = settings.DATABASE_URL_SYNC
-
-if not DATABASE_URL_SYNC:
-    DATABASE_URL_SYNC = (
-        f"postgresql+psycopg://"
-        f"{settings.POSTGRES_USER}:"
-        f"{settings.POSTGRES_PASSWORD}@"
-        f"{settings.POSTGRES_HOST}:"
-        f"{settings.POSTGRES_HOST_PORT}/"
-        f"{settings.POSTGRES_DB}"
-    )
-    logger.info(
-        "Local environment detected. Constructed DATABASE_URL_SYNC from settings."
-    )
 
 url_obj_sync = make_url(DATABASE_URL_SYNC)
 

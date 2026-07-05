@@ -6,13 +6,6 @@ networks:
     name: ${PROJECT_NAME}_network
     driver: bridge
 
-# 定義共用環境變數模組
-x-common-env: &common-env
-  DATABASE_URL_ASYNC: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-  DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-  REDIS_URL: redis://${REDIS_HOST}:${REDIS_PORT}/0
-  OLLAMA_BASE_URL: http://${OLLAMA_HOST}:${OLLAMA_PORT}
-
 # 定義共用的 Image 模板，讓四個服務共用同一個 build context，省下重複 build 的時間
 x-app-build: &app-build
   context: .
@@ -34,9 +27,6 @@ services:
       - "${API_HOST_PORT}:${API_PORT}"
     networks:
       - agent_net
-    environment:
-      # FastAPI 專屬 (DATABASE_URL_ASYNC)：使用 +asyncpg 啟動非同步資料庫連線，徹底解放併發效能
-      <<: *common-env
     depends_on:
       db:
         condition: service_healthy
@@ -57,9 +47,6 @@ services:
       - ./src:/app/src
     networks:
       - agent_net
-    environment:
-      <<: *common-env
-      # Worker 專屬(DATABASE_URL_SYNC)：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
     depends_on:
       db:
         condition: service_healthy
@@ -83,9 +70,6 @@ services:
       - ./shared_uploads:/app/temp_uploads # Worker 也能讀到同一個資料夾
     networks:
       - agent_net
-    environment:
-      <<: *common-env
-      # Worker 專屬(DATABASE_URL_SYNC)：使用傳統同步連線 (psycopg-binary)，確保長時間運算穩定
     depends_on:
       db:
         condition: service_healthy
@@ -141,8 +125,6 @@ services:
     # [Production]一次性升級作業不需要熱更新（bind mount）
     networks:
       - agent_net
-    environment:
-      <<: *common-env
     depends_on:
       db:
         condition: service_healthy
