@@ -186,11 +186,11 @@ curl -X GET http://localhost:8000/api/tasks/550e8400-e29b-41d4-a716-446655440000
     - 實作 API 路由層。接收前端請求 -> 寫入 DB Task 狀態 (Pending) -> 推送任務至 Redis -> 立即回傳 Task ID 給 Client。
 - ✅ feature/04-worker-celery
     - 建立 Celery Worker 基礎架構，打通非同步任務狀態更新的 E2E 骨幹。
+- ✅ feature/05-ingestion-pipeline
+    - 實作 RAG 文件處理管線 (PDF 解析 -> Chunking -> Vectorization -> pgvector 儲存)
 
 
 ### 待開發 (🚧)
-- 🚧 feature/05-ingestion-pipeline
-    - 實作 RAG 文件處理管線 (PDF 解析 -> Chunking -> Vectorization -> pgvector 儲存)
 - 🚧 feature/06-agent-inference
     - 整合 LiteLLM 與 LangChain，對接 Ollama 執行Agent 對話推論。
 
