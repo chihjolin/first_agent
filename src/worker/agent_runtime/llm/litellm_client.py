@@ -2,7 +2,7 @@ import json
 from typing import Any, Sequence, cast
 
 from litellm import completion
-from litellm.types.utils import Choices, ModelResponse
+from litellm.types.utils import ChatCompletionMessageToolCall, Choices, ModelResponse
 
 from src.worker.agent_runtime.domain.models import LLMMessage, LLMResponse, ToolCall
 from src.worker.agent_runtime.llm.base import BaseLLM
@@ -57,8 +57,14 @@ class LiteLLMClient(BaseLLM):
         """
         執行一次非 Streaming LLM inference。
 
-        目前 Phase 2.2 只實作最小 inference path，
-        尚不處理 Tool Calling 與 Token Usage。
+        支援：
+            - 一般文字回覆
+            - Tool Calling
+
+        目前尚不處理：
+            - Tool execution
+            - Streaming
+            - Token Usage
 
         流程：
 
@@ -68,7 +74,9 @@ class LiteLLMClient(BaseLLM):
                 ↓
             completion()
                 ↓
-            LLMResponse
+            LiteLLM ModelResponse
+                ↓
+            Domain LLMResponse
         """
         # ------------------------------------------
         # 1. 將 Domain Message 轉換為 LiteLLM format
@@ -94,8 +102,8 @@ class LiteLLMClient(BaseLLM):
         if self.api_base:
             completion_kwargs["api_base"] = self.api_base
 
-        # if tools:
-        #     completion_kwargs["tools"] = list(tools)
+        if tools:
+            completion_kwargs["tools"] = list(tools)
 
         # ------------------------------------------
         # 3. 呼叫 LiteLLM
@@ -120,24 +128,40 @@ class LiteLLMClient(BaseLLM):
         # ------------------------------------------
         # 5. 將 Tool Calls 轉換為 Domain Model
         # ------------------------------------------
-        # tool_calls = []
+        tool_calls: list[ToolCall] = []
 
-        # if message.tool_calls:
-        #     for tool_call in message.tool_calls:
-        #         tool_calls.append(
-        #             ToolCall(
-        #                 id=tool_call.id,
-        #                 name=tool_call.function.name,
-        #                 arguments=json.loads(tool_call.function.arguments),
-        #             )
-        #         )
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
+
+                if not isinstance(
+                    tool_call,
+                    ChatCompletionMessageToolCall,
+                ):
+                    raise ValueError("Unsupported tool call type returned by LLM.")
+
+                tool_name = tool_call.function.name
+
+                if not tool_name:
+                    raise ValueError(
+                        "LLM returned a tool call without a function name."
+                    )
+
+                tool_calls.append(
+                    ToolCall(
+                        id=tool_call.id,
+                        name=tool_name,
+                        arguments=json.loads(
+                            tool_call.function.arguments,
+                        ),
+                    )
+                )
 
         # ------------------------------------------
         # 6. 將 LiteLLM response 轉換為 Domain Model
         # ------------------------------------------
         return LLMResponse(
             content=message.content,
-            tool_calls=[],
+            tool_calls=tool_calls,
             model=response.model,
             usage={},
         )
