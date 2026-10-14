@@ -3,36 +3,6 @@ from typing import Any, Dict, List, Optional
 
 
 @dataclass(slots=True)
-class LLMMessage:
-    """
-    LLM 對話訊息的 Domain Contract。
-
-    這是 Agent Runtime 自己定義的 Message 格式，
-    不直接使用 LangChain 的 HumanMessage / AIMessage / ToolMessage。
-    後續由 LLM Adapter 負責將這個 Domain Model 轉換成 LiteLLM / LangChain 所需要的格式。
-
-    例如：
-
-        LLMMessage(
-            role="user",
-            content="如何開立證券戶？"
-        )
-
-    role 預期包含：
-        - system
-        - user
-        - assistant
-        - tool
-
-    content：
-        實際訊息內容。
-    """
-
-    role: str
-    content: str
-
-
-@dataclass(slots=True)
 class ToolCall:
     """
     LLM 要求執行 Tool 時所產生的 Tool Call Contract。
@@ -60,6 +30,85 @@ class ToolCall:
     id: str
     name: str
     arguments: Dict[str, Any]
+
+
+@dataclass(slots=True)
+class LLMMessage:
+    """
+    LLM 對話訊息的 Domain Contract。
+
+    這是 Agent Runtime 自己定義的 Message 格式，
+    不直接使用 LangChain 的 HumanMessage / AIMessage / ToolMessage。
+    後續由 LLM Adapter 負責將這個 Domain Model 轉換成 LiteLLM / LangChain 所需要的格式。
+
+    例如：
+
+        - 一般 user message
+
+            LLMMessage(
+                role="user",
+                content="如何開立證券戶？"
+            )
+
+        - assistant 普通回覆
+
+            LLMMessage(
+                role="assistant",
+                content="我來幫你查詢。",
+            )
+
+        - assistant Tool Call
+
+            LLMMessage(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="call_123",
+                        name="get_weather",
+                        arguments={"city": "台北"},
+                    )
+                ],
+            )
+
+        - tool result
+
+            LLMMessage(
+                role="tool",
+                content="台北目前 25°C，晴天。",
+                tool_call_id="call_123",
+                name="get_weather",
+            )
+
+
+
+    role 表示誰產生這個 message，預期包含：
+        - system
+        - user
+        - assistant
+        - tool
+
+    content：
+        實際訊息內容。
+        但是 Tool Calling 時，content=None是合法的，因為這一輪 assistant 不一定在說話，而是在提出 Tool Call。
+
+
+    tool_calls :
+        只有 assistant message 需要。
+
+    tool_call_id:
+        Tool message 用來說：「這個 Tool Result 是回應哪一個 Tool Call？」
+
+    name:
+        主要讓 tool message 可以保留實際 Tool 名稱
+
+    """
+
+    role: str
+    content: str | None = None
+    tool_calls: List[ToolCall] = field(default_factory=list)
+    tool_call_id: str | None = None
+    name: str | None = None
 
 
 @dataclass(slots=True)
