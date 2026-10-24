@@ -1,26 +1,16 @@
-from src.shared.db.models import ChatSession
+import pytest
+
 from src.shared.db.session import get_sync_db
 from src.worker.agent_runtime.domain.models import LLMMessage, ToolCall
 from src.worker.agent_runtime.memory.database import DatabaseMemory
 
 
-def test_database_memory_round_trip():
+def test_database_memory_persistence_across_sessions(chat_session_id: str) -> None:
+    """
+    Session A 寫入並 Commit。
+    Session B 重新讀取，驗證 PostgreSQL Persistence。
+    """
     with get_sync_db() as db:
-
-        # ===建立測試所需要的既有 ChatSession 資料。===
-        # Transient: 建立 ORM Instance
-        # 物件已存在於 Python，尚未加入 Session，尚未發送 SQL
-        chat_session = ChatSession()
-
-        # Pending: SQLAlchemy Session 開始追蹤這個 ORM Object
-        # SQLAlchemy 知道它需要 INSERT，但尚未真正執行 INSERT
-        db.add(chat_session)
-
-        # Persistent:SQLAlchemy 才真的把 SQL 傳送到 PostgreSQL
-        db.flush()
-
-        # DatabaseMemory 並不負責建立新的 ChatSession，它只負責對既有 ChatSession 操作 Memory。
-        memory = DatabaseMemory(db)
 
         messages = [
             LLMMessage(
@@ -50,9 +40,63 @@ def test_database_memory_round_trip():
             ),
         ]
 
-        for message in messages:
-            memory.append(chat_session.id, message)
+        # Session A：寫入 + Commit
+        with get_sync_db() as db:
+            memory = DatabaseMemory(db)
+            for message in messages:
+                memory.append(chat_session_id, message)
 
-        lodaded_messages = memory.load(chat_session.id)
+        # Session B：重新讀取
+        with get_sync_db() as db:
+            memory = DatabaseMemory(db)
+            loaded_messages = memory.load(chat_session_id)
+            assert loaded_messages == messages
 
-        assert lodaded_messages == messages
+
+def test_database_memory_rollback(chat_session_id: str) -> None:
+    """
+    驗證 Memory.append() 已 flush，
+    但 Transaction 發生 Exception 時，
+    PostgreSQL 不會保留該次修改。
+    """
+    message = LLMMessage(
+        role="user",
+        content="這筆訊息應該被 Rollback",
+    )
+
+    # Session A：Write + Flush + Exception
+    with pytest.raises(
+        RuntimeError,
+        match="Simulated failure",
+    ):
+        with get_sync_db() as db:
+            memory = DatabaseMemory(db)
+
+            memory.append(
+                chat_session_id,
+                message,
+            )
+            # append() 內部已執行 repository.save()
+            # repository.save() 已執行 flush()
+            # 但尚未 Commit
+
+            raise RuntimeError("Simulated failure")
+
+    # Session B：Verify Rollback
+    with get_sync_db() as db:
+        memory = DatabaseMemory(db)
+        loaded_messages = memory.load(chat_session_id)
+        assert loaded_messages == []
+
+
+def test_database_memory_load_missing_session() -> None:
+    missing_session_id = "00000000-0000-0000-0000-000000000000"
+
+    with get_sync_db() as db:
+        memory = DatabaseMemory(db)
+
+        with pytest.raises(
+            ValueError,
+            match="Chat session not found",
+        ):
+            memory.load(missing_session_id)
