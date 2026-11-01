@@ -51,14 +51,25 @@ class DatabaseMemory(BaseMemory):
         session_id: str,
         message: LLMMessage,
     ) -> None:
-        """
-        將一筆 LLMMessage 加入指定 ChatSession 的 history。
+        """將訊息追加至指定 ChatSession 的對話歷史。
 
-        注意：
-        此方法只 flush，不 commit。
-        Transaction lifecycle 由外層 Session scope 管理。
+        使用 PostgreSQL Row-level Lock 保護 Read-Modify-Write，
+        避免多個 Transaction 並行更新時發生 Lost Update。
+
+        本方法只執行 Flush，不負責 Commit 或 Rollback。
+
+        Args:
+            session_id: 目標 ChatSession 主鍵。
+            message: 要追加的 Domain LLMMessage。
+
+        Returns:
+            None。
+
+        Raises:
+            ValueError: 指定的 ChatSession 不存在。
+            SQLAlchemyError: 資料庫查詢或寫入失敗。
         """
-        chat_session = self.repository.get(session_id)
+        chat_session = self.repository.get_for_update(session_id)
 
         if chat_session is None:
             raise ValueError(f"Chat session not found: {session_id}")

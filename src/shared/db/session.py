@@ -101,12 +101,12 @@ def get_sync_db():
     if not SessionLocal:
         raise RuntimeError("Sync engine was not initialized.")
 
-    db = SessionLocal()  # 1. 從 Connection Pool 借出一條連線
+    db = SessionLocal()  # 1. 建立 ORM Session，實際 Connection 於需要 DB I/O 時取得
     try:
         yield db  # 2. 將連線交給 Task 執行業務邏輯 (例如查資料、改狀態)
         db.commit()  # 3. 如果 Task 順利執行完沒有報錯，自動 Commit (確保資料寫入)
     except Exception:
-        db.rollback()  # 4.萬一 Task 中途當機或拋錯，立刻 Rollback，避免鎖死資料庫表單 (Deadlock)
+        db.rollback()  # 4.萬一 Task 中途當機或拋錯，立刻 Rollback，撤銷尚未提交的交易並結束交易狀態
         raise  # 並把錯誤往上丟，讓 Celery 的 Retry 機制接手
     finally:
         db.close()  # 5.最重要的一步：不管成功或失敗，強制把連線還給 Pool！
