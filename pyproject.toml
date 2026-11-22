@@ -49,3 +49,6 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "integration: tests requiring external services such as Ollama and PostgreSQL",
+]
