@@ -1,6 +1,7 @@
 import logging
 from typing import Sequence
 
+import httpx
 from langchain_ollama import OllamaEmbeddings
 
 from src.shared.core.config import settings
@@ -8,6 +9,13 @@ from src.shared.embeddings.base import BaseEmbedder
 from src.shared.embeddings.exceptions import EmbeddingException
 
 logger = logging.getLogger(__name__)
+
+RETRYABLE_PROVIDER_ERRORS = (
+    ConnectionError,
+    TimeoutError,
+    httpx.ConnectError,
+    httpx.TimeoutException,
+)
 
 
 class OllamaEmbedder(BaseEmbedder):
@@ -86,6 +94,13 @@ class OllamaEmbedder(BaseEmbedder):
         except EmbeddingException:
             raise
 
+        except RETRYABLE_PROVIDER_ERRORS:
+            logger.exception(
+                "[OllamaEmbedder] Retryable provider error. model=%s",
+                self.model_name,
+            )
+            raise
+
         except Exception as e:
             logger.exception(
                 "[OllamaEmbedder] Query embedding failed. model=%s",
@@ -148,6 +163,15 @@ class OllamaEmbedder(BaseEmbedder):
 
         except EmbeddingException:
             raise
+
+        except RETRYABLE_PROVIDER_ERRORS:
+            logger.exception(
+                "[OllamaEmbedder] Retryable provider error. " "model=%s batch_size=%d",
+                self.model_name,
+                len(texts),
+            )
+            raise
+
         except Exception as e:
             logger.exception(
                 "[OllamaEmbedder] Document embedding failed. " "model=%s batch_size=%d",

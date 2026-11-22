@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
 from src.shared.embeddings.exceptions import EmbeddingException
@@ -163,3 +164,29 @@ def test_embed_documents_dimension_mismatch(
                 "Document B",
             ]
         )
+
+
+def test_embed_documents_connection_error(
+    embedder,
+    mock_ollama_embeddings,
+):
+    """測試 Provider 連線失敗時保留原始例外類型。"""
+    mock_ollama_embeddings.embed_documents.side_effect = httpx.ConnectError(
+        "Connection refused"
+    )
+
+    with pytest.raises(httpx.ConnectError):
+        embedder.embed_documents(["Document A"])
+
+
+def test_embed_documents_timeout_error(
+    embedder,
+    mock_ollama_embeddings,
+):
+    """測試 Provider Timeout 時保留原始例外類型。"""
+    mock_ollama_embeddings.embed_documents.side_effect = httpx.ReadTimeout(
+        "Request Timeout"
+    )
+
+    with pytest.raises(httpx.TimeoutException):
+        embedder.embed_documents(["Document A"])

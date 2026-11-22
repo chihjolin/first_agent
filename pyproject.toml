@@ -29,7 +29,8 @@ dependencies = [
     "aiofiles (>=25.1.0,<26.0.0)",
     "python-multipart (>=0.0.22,<0.0.23)",
     "pymupdf (>=1.27.2.3,<2.0.0.0)",
-    "langchain-text-splitters (>=1.1.2,<2.0.0)"
+    "langchain-text-splitters (>=1.1.2,<2.0.0)",
+    "httpx (>=0.28.1,<0.29.0)"
 ]
 
 

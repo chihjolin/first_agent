@@ -6,6 +6,8 @@ setup_logging()
 
 print("LOGGING CONFIGURED")
 
+import httpx
+
 from src.shared.core.celery_app import celery_app
 from src.worker.ingestion.pipeline import run_ingestion_pipeline
 from src.worker.utils.task_runner import run_worker_task
@@ -17,6 +19,8 @@ from src.worker.utils.task_runner import run_worker_task
     autoretry_for=(
         ConnectionError,
         TimeoutError,
+        httpx.ConnectError,
+        httpx.TimeoutException,
     ),
     retry_backoff=True,
     retry_kwargs={"max_retries": 3},
